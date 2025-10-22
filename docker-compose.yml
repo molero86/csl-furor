@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: furor_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    networks:
+      - furor_net
+
+  frontend:
+    build: ./frontend
+    container_name: furor_frontend
+    restart: always
+    ports:
+      - "80:80"
+    networks:
+      - furor_net
+
+networks:
+  furor_net:
+    driver: bridge
