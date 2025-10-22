@@ -1,0 +1,113 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==============================
+   Estilos globales
+============================== */
+body {
+  font-family: 'Poppins', sans-serif;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: linear-gradient(-45deg, #1DB954, #1d54b9, #b9ae1d, #b91d1d);
+  background-size: 400% 400%;
+  animation: gradientBG 15s ease infinite;
+  color: #fff;
+}
+
+@keyframes gradientBG {
+  0% {background-position: 0% 0%;}
+  50% {background-position: 50% 50%;}
+  100% {background-position: 100% 100%;}
+}
+
+/* ==============================
+   Contenedores y tarjetas
+============================== */
+.min-screen {
+  min-height: 100vh;
+}
+
+.flex-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Card estilo Spotify */
+.card {
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 2rem;
+  border-radius: 2rem;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+}
+
+/* ==============================
+   Inputs tipo comic
+============================== */
+.input-comic {
+  width: 100%;
+  max-width: 320px;
+  padding: 0.75rem 1rem;
+  border: 4px solid #1DB954;
+  border-radius: 1.5rem;
+  background-color: rgba(255, 255, 255, 0.9);
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #000;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+  transition: all 0.2s ease;
+}
+
+.input-comic:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px #1AA34A;
+  transform: scale(1.05);
+}
+
+/* ==============================
+   Botones
+============================== */
+.button-comic {
+  margin-top: 10px;
+  background-color: #0f1310;
+  color: #FFF;
+  font-weight: bold;
+  padding: 0.75rem 1.5rem;
+  border-radius: 1.5rem;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.button-comic:hover {
+  background-color: #00D44B;
+  transform: scale(1.05);
+}
+
+.highglight-button {
+  background-color: #1DB954;
+  color: #000;
+}
+
+/* ==============================
+   Lista de jugadores
+============================== */
+.player-list li {
+  padding: 0.5rem 1rem;
+  border-radius: 1rem;
+  margin-bottom: 0.25rem;
+  background-color: rgba(255,255,255,0.1);
+  transition: background-color 0.2s ease;
+}
+
+.player-list li:hover {
+  background-color: rgba(255,255,255,0.2);
+}
