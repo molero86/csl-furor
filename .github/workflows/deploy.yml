@@ -27,7 +27,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
-          port: 22
+          port: ${{ secrets.SSH_PORT }}
           script: |
             cd /home/${{ secrets.SSH_USER }}/furor-app
             docker compose down
