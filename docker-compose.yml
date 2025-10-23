@@ -6,7 +6,7 @@ services:
     container_name: furor_backend
     restart: always
     ports:
-      - "8000:8000"
+      - "4017:8000"
     environment:
       - DATABASE_URL=${DATABASE_URL}
     networks:
@@ -17,7 +17,7 @@ services:
     container_name: furor_frontend
     restart: always
     ports:
-      - "80:80"
+      - "4018:80"
     networks:
       - furor_net
 
