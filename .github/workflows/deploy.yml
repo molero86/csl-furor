@@ -42,5 +42,6 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             cd /home/${{ secrets.SSH_USER }}/Docker/furor-app
+            export DATABASE_URL=${{ secrets.DATABASE_URL }}
             docker compose down || true
-            DATABASE_URL='${{ secrets.DATABASE_URL }}' docker compose up -d --build
+            docker compose up -d --build
