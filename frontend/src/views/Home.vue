@@ -1,25 +1,29 @@
 <template>
   <div class="home-container">
-    <!-- Título -->
     <h1 class="text-title mb-6 text-white text-center">🎶 CSL Furor! 🎶</h1>
 
     <div class="options">
       <!-- Crear partida -->
-      <button @click="createGame" class="button-comic">Crear Partida</button>
+      <button @click="handleCreateGame" class="button-comic">Crear Partida</button>
 
       <!-- Unirse a partida -->
       <div class="card">
         <h2>Jugador</h2>
-        <p>Introduce el ID de la partida para unirte</p>
+        <p>Introduce el ID de la partida y tu nombre para unirte</p>
         <input
           v-model="gameId"
           placeholder="ID de partida"
           class="input-comic input-id"
         />
+        <input
+          v-model="playerName"
+          placeholder="Tu nombre"
+          class="input-comic input-id"
+        />
         <button
-          @click="joinGame"
+          @click="handleJoinGame"
           class="button-comic w-full"
-          :disabled="!gameId.trim()"
+          :disabled="!gameId.trim() || !playerName.trim()"
         >
           Unirse
         </button>
@@ -29,25 +33,46 @@
 </template>
 
 <script setup>
-import { useRouter } from 'vue-router'
-import { ref } from 'vue'
+import { useRouter } from "vue-router";
+import { ref } from "vue";
+import { createGame, getGame } from "../services/api";
+import gameService from "../services/gameService";
 
-const router = useRouter()
-const gameId = ref('')
+const router = useRouter();
+const gameId = ref("");
+const playerName = ref("");
 
-// Genera un ID de partida aleatorio (por ejemplo, 6 caracteres)
-function generateGameId() {
-  return Math.random().toString(36).substring(2, 8).toUpperCase()
+async function handleCreateGame() {
+  try {
+    const game = await createGame();
+
+    const playerName = "administrator";
+    gameService.connect(game.code, playerName);
+
+    router.push(`/admin/${game.code}`);
+  } catch (error) {
+    console.error(error);
+    alert("Error al crear la partida");
+  }
 }
 
-function createGame() {
-  const id = generateGameId()
-  router.push(`/admin/${id}`)
-}
+async function handleJoinGame() {
+  const id = gameId.value.trim();
+  const pName = playerName.value.trim();
+  if (!id) return;
 
-function joinGame() {
-  if (gameId.value.trim()) {
-    router.push(`/player/${gameId.value.trim()}`)
+  try {
+    const game = await getGame(id);
+    if (!game) {
+      alert("La partida no existe 😕");
+      return;
+    }
+
+    gameService.connect(game.code, pName);
+    router.push(`/player/${id}`);
+  } catch (error) {
+    console.error(error);
+    alert("Error al unirse a la partida");
   }
 }
 </script>
@@ -59,13 +84,6 @@ function joinGame() {
   align-items: center;
   justify-content: center;
   height: 100vh;
-}
-
-.title {
-  font-size: 2.5rem;
-  margin-bottom: 3rem;
-  color: #222;
-  text-align: center;
 }
 
 .options {

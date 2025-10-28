@@ -1,62 +1,82 @@
 <template>
-  <div class="min-screen flex-center bg-spotify-gradient px-4">
-    <div class="bg-white/10 p-8 rounded-3xl w-full max-w-md flex flex-col items-center shadow-lg">
-      <!-- Título -->
-      <h1 class="text-title mb-6 text-white text-center">🎶 CSL Furor! 🎶</h1>
-      <p class="text-subtitle mb-6 text-center">Introduce tu nombre para unirte al juego</p>
+  <div class="min-screen flex-center bg-spotify-gradient px-4 overflow-hidden relative">
+    <div
+      v-for="(player, index) in players"
+      :key="index"
+      class="absolute player-bubble text-white text-lg font-bold px-4 py-2 rounded-full shadow-lg"
+      :style="getRandomPosition(index)"
+    >
+      {{ player.name }}
+    </div>
 
-      <!-- Input y botón -->
-      <div class="flex flex-col gap-4">
-        <input
-          v-model="nombre"
-          placeholder="Tu nombre"
-          class="input-comic"
-        />
-        <button @click="unirse" class="button-comic">
-          Unirme al juego
-        </button>
-      </div>
+    <div class="absolute bottom-8 w-full text-center text-white/70 waiting-text">
+      Esperando a que se unan los jugadores...
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import axios from 'axios'
+import { ref, onMounted, onUnmounted } from 'vue'
+import gameService from '../../services/gameService'
 
-const nombre = ref('')
-const jugadores = ref([])
+const players = ref([])
 
-// URL del backend
-const API_URL = 'http://localhost:8000/players/'
-
-// Registrar jugador
-async function unirse() {
-  if (!nombre.value) return alert('Introduce tu nombre')
-  try {
-    await axios.post(API_URL, { name: nombre.value })
-    nombre.value = ''
-    await cargarJugadores()
-  } catch (err) {
-    console.error(err)
-    alert('Error al registrarte')
+// Función para obtener una posición inicial aleatoria
+function getRandomPosition(index) {
+  const top = Math.random() * 80 + 10 // entre 10% y 90%
+  const left = Math.random() * 80 + 10
+  const delay = Math.random() * 2 // retraso aleatorio
+  const duration = 10 + Math.random() * 10 // velocidad distinta
+  const color = `hsl(${Math.random() * 360}, 70%, 60%)`
+  return {
+    top: `${top}%`,
+    left: `${left}%`,
+    animationDelay: `${delay}s`,
+    animationDuration: `${duration}s`,
+    color
   }
 }
 
-// Cargar jugadores conectados
-async function cargarJugadores() {
-  try {
-    const res = await axios.get(API_URL)
-    jugadores.value = res.data
-  } catch (err) {
-    console.error(err)
-  }
+function cargarJugadores() {
+  // players.value = ["Jugador 1", "Jugador 2", "Jugador 3", "Jugador 4"]
+  players.value = gameService.getPlayers()
+  const intervalId = setInterval(() => {
+    players.value = gameService.getPlayers()
+  }, 1000)
+  onUnmounted(() => {
+    clearInterval(intervalId)
+  })
 }
 
-// Cargar jugadores al iniciar
 onMounted(() => {
   cargarJugadores()
-  // Refrescar cada 3 segundos
-  setInterval(cargarJugadores, 3000)
+  setInterval(cargarJugadores, 5000)
 })
 </script>
+
+<style scoped>
+.player-bubble {
+  animation-name: bounceAround;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+  font-size: larger;
+  font-weight: bold;
+  font-family: 'Comic Sans MS', cursive, sans-serif;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* Animación de rebote */
+@keyframes bounceAround {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(10vw, 10vh); }
+  50%  { transform: translate(30vw, 30vh); }
+  75%  { transform: translate(20vw, 20vh); }
+  100% { transform: translate(10vw, 10vh); }
+}
+
+.waiting-text {
+  font-size: 1.55rem;
+  animation: pulse 2s infinite;
+}
+</style>

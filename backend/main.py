@@ -1,8 +1,9 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from websocket.manager import websocket_endpoint
 from sqlalchemy.orm import Session
 import random, string
-
+from database import get_db
 from database import Base, engine, SessionLocal
 import models, schemas
 
@@ -27,16 +28,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --------------------
-# Dependencia de BD
-# --------------------
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
 def generate_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
@@ -45,19 +36,24 @@ def generate_code():
 # --------------------
 
 @app.post("/games", response_model=schemas.Game)
-def create_game(game: schemas.GameCreate, db: Session = Depends(get_db)):
+def create_game(db: Session = Depends(get_db)):
     code = generate_code()
-    db_game = models.Game(name=game.name, code=code)
+    db_game = models.Game(name=code, code=code)
     db.add(db_game)
     db.commit()
     db.refresh(db_game)
     return db_game
 
-
 @app.get("/games", response_model=list[schemas.Game])
 def get_games(db: Session = Depends(get_db)):
     return db.query(models.Game).all()
 
+@app.get("/games/{game_code}")
+def get_game(game_code: str, db: Session = Depends(get_db)):
+    game = db.query(models.Game).filter(models.Game.code == game_code).first()
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    return game
 
 @app.get("/games/{game_code}/players", response_model=list[schemas.Player])
 def get_players(game_code: str, db: Session = Depends(get_db)):
@@ -65,7 +61,6 @@ def get_players(game_code: str, db: Session = Depends(get_db)):
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
     return game.players
-
 
 @app.post("/games/{game_code}/players", response_model=schemas.Player)
 def add_player(game_code: str, player: schemas.PlayerCreate, db: Session = Depends(get_db)):
@@ -79,7 +74,6 @@ def add_player(game_code: str, player: schemas.PlayerCreate, db: Session = Depen
     db.refresh(db_player)
     return db_player
 
-
 @app.delete("/players/{player_id}")
 def delete_player(player_id: int, db: Session = Depends(get_db)):
     player = db.query(models.Player).filter(models.Player.id == player_id).first()
@@ -88,3 +82,5 @@ def delete_player(player_id: int, db: Session = Depends(get_db)):
     db.delete(player)
     db.commit()
     return {"message": "Player deleted successfully"}
+
+app.add_api_websocket_route("/ws/{game_code}", websocket_endpoint)

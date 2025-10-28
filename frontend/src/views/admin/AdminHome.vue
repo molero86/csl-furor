@@ -7,31 +7,31 @@
         Panel de Administrador
       </h1>
 
-      <!-- Lista de jugadores -->
+      <!-- Players list -->
       <div class="w-full max-w-md">
         <h2 class="text-xl font-semibold mb-2 text-white text-center">Jugadores Conectados</h2>
         <ul class="player-list mb-4">
           <li
-            v-for="(player, index) in jugadores"
+            v-for="(player, index) in players"
             :key="index"
             class="grid grid-cols-[1fr_auto] items-center gap-4 py-1"
           >
-            <span>{{ player.nombre }}</span>
+            <span>{{ player.name }}</span>
             <div class="flex gap-2">
               <button
-                @click="asignarGrupo(player, 'A')"
+                @click="assignGroup(player, 'A')"
                 :class="[
                   'button-comic px-2 py-1 text-sm',
-                  player.grupo === 'A' ? 'highglight-button' : ''
+                  player.group === 'A' ? 'highglight-button' : ''
                 ]"
               >
                 A
               </button>
               <button
-                @click="asignarGrupo(player, 'B')"
+                @click="assignGroup(player, 'B')"
                 :class="[
                   'button-comic px-2 py-1 text-sm',
-                  player.grupo === 'B' ? 'highglight-button' : '',
+                  player.group === 'B' ? 'highglight-button' : '',
                 ]"
               >
                 B
@@ -45,25 +45,25 @@
       <div class="flex flex-col gap-4 w-full max-w-md">
         <div class="flex gap-2 items-center">
           <span class="text-white font-semibold">Nombre Grupo A:</span>
-          <input v-model="nombreGrupoA" class="input-comic" placeholder="Grupo A" />
+          <input v-model="groupAName" class="input-comic" placeholder="Grupo A" />
         </div>
         <div class="flex gap-2 items-center">
           <span class="text-white font-semibold">Nombre Grupo B:</span>
-          <input v-model="nombreGrupoB" class="input-comic" placeholder="Grupo B" />
+          <input v-model="groupBName" class="input-comic" placeholder="Grupo B" />
         </div>
       </div>
 
       <!-- Resumen de asignaciones -->
       <div class="flex flex-col gap-2 w-full max-w-md text-white">
-        <p>Jugadores en {{ nombreGrupoA }}: {{ jugadoresEnGrupo('A').map(p => p.nombre).join(', ') || '-' }}</p>
-        <p>Jugadores en {{ nombreGrupoB }}: {{ jugadoresEnGrupo('B').map(p => p.nombre).join(', ') || '-' }}</p>
+        <p>Jugadores en {{ groupAName }}: {{ playersByGroup('A').map(p => p.nombre).join(', ') || '-' }}</p>
+        <p>Jugadores en {{ groupBName }}: {{ playersByGroup('B').map(p => p.nombre).join(', ') || '-' }}</p>
       </div>
 
       <!-- Botón de iniciar juego -->
       <button
         class="button-comic w-full max-w-xs"
         @click="comenzarJuego"
-        :disabled="jugadores.length === 0 || !allPlayersAssigned()"
+        :disabled="players.length === 0 || !allPlayersAssigned()"
       >
         Comenzar Juego
       </button>
@@ -74,46 +74,52 @@
 
 <script setup>
 import { reactive, ref } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
+import gameService from '../../services/gameService'
 
-// Lista simulada de jugadores conectados
-const jugadores = reactive([
-  { nombre: 'Ruben', grupo: null },
-  { nombre: 'Ana', grupo: null },
-  { nombre: 'Luis', grupo: null },
-  { nombre: 'Marta', grupo: null },
-])
+
+const players = reactive([])
+
+onMounted(() => {
+  loadPlayers()
+  const intervalId = setInterval(() => {
+    loadPlayers()
+  }, 1000)
+  onUnmounted(() => {
+    clearInterval(intervalId)
+  })
+})
+
+function loadPlayers() {
+  players.splice(0, players.length, ...gameService.getPlayers())
+}
 
 // Nombres de los grupos
-const nombreGrupoA = ref('Grupo A')
-const nombreGrupoB = ref('Grupo B')
+const groupAName = ref('Grupo A')
+const groupBName = ref('Grupo B')
 
 // Función para asignar jugador a un grupo
-function asignarGrupo(player, grupo) {
-  player.grupo = grupo
+function assignGroup(player, group) {
+  player.group = group
 }
 
-// Filtrar jugadores por grupo
-function jugadoresEnGrupo(grupo) {
-  return jugadores.filter(p => p.grupo === grupo)
-}
-
-function jugadorEnGrupo(player){
-  return player.grupo
+function playersByGroup(group) {
+  return players.filter(p => p.group === group  )
 }
 
 function allPlayersAssigned(){
   console.log("Verificando asignaciones de jugadores...");
-  jugadores.forEach(p => {
-    console.log(`Jugador: ${p.nombre}, Grupo: ${p.grupo}`);
+  players.forEach(p => {
+    console.log(`Jugador: ${p.nombre}, Grupo: ${p.group}`);
   });
-  return jugadores.every(p => p.grupo !== null)
+  return players.every(p => p.group !== null)
 }
 
 // Función de inicio del juego
 function comenzarJuego() {
   console.log('Juego iniciado con los grupos:')
-  console.log(nombreGrupoA.value, jugadoresEnGrupo('A'))
-  console.log(nombreGrupoB.value, jugadoresEnGrupo('B'))
+  console.log(groupAName.value, playersByGroup('A'))
+  console.log(groupBName.value, playersByGroup('B'))
   alert('¡Juego iniciado! Mira la consola para detalles.')
 }
 </script>
