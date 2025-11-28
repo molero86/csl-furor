@@ -17,7 +17,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import gameService from '../../services/gameService'
+import gameService from '../../services/gameService.js'
 
 const players = ref([])
 

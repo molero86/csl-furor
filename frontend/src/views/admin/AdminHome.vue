@@ -7,6 +7,20 @@
         Panel de Administrador
       </h1>
 
+      <!-- Código de la partida -->
+      <div class="flex flex-col items-center gap-2">
+        <h1 
+          class="text-5xl font-bold text-yellow-400 cursor-pointer select-all hover:text-yellow-300 transition-colors"
+          @click="copyGameCode"
+          :title="copied ? '¡Copiado!' : 'Click para copiar'"
+        >
+          {{ gameId }}
+        </h1>
+        <span v-if="copied" class="text-green-400 text-sm font-semibold animate-fade-in">
+          ¡Copiado al portapapeles!
+        </span>
+      </div>
+
       <!-- Players list -->
       <div class="w-full max-w-md">
         <h2 class="text-xl font-semibold mb-2 text-white text-center">Jugadores Conectados</h2>
@@ -75,12 +89,25 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import gameService from '../../services/gameService'
+const API_URL = import.meta.env.VITE_API_URL
+
+const route = useRoute()
+const gameId = ref(String(route.params.gameId || ''))
+let gameId2 = ''
+const copied = ref(false)
 
 
 const players = reactive([])
+const phase = 1 // Primera fase
 
 onMounted(() => {
+  //Get gameId from url last part http://localhost:5173/admin/LD1U5M
+  gameId2 = route.path.split('/').pop()
+  console.log("gameId2", gameId2)
+  console.log("route.path", route.path)
+
   loadPlayers()
   const intervalId = setInterval(() => {
     loadPlayers()
@@ -89,6 +116,28 @@ onMounted(() => {
     clearInterval(intervalId)
   })
 })
+
+function copyGameCode() {
+  navigator.clipboard.writeText(gameId.value).then(() => {
+    copied.value = true
+    setTimeout(() => {
+      copied.value = false
+    }, 2000)
+  }).catch(err => {
+    console.error('Error al copiar:', err)
+    // Fallback para navegadores antiguos
+    const textArea = document.createElement('textarea')
+    textArea.value = gameId.value
+    document.body.appendChild(textArea)
+    textArea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textArea)
+    copied.value = true
+    setTimeout(() => {
+      copied.value = false
+    }, 2000)
+  })
+}
 
 function loadPlayers() {
   players.splice(0, players.length, ...gameService.getPlayers())
@@ -116,11 +165,24 @@ function allPlayersAssigned(){
 }
 
 // Función de inicio del juego
-function comenzarJuego() {
+async function comenzarJuego() {
   console.log('Juego iniciado con los grupos:')
   console.log(groupAName.value, playersByGroup('A'))
   console.log(groupBName.value, playersByGroup('B'))
-  alert('¡Juego iniciado! Mira la consola para detalles.')
+
+  console.log("gameId2", gameId2)
+  const response = await fetch(`${API_URL}/games/${gameId2}/generate-phase/${phase}`, {
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.detail || "Error generating phase");
+  }
+
+  const result = await response.json();
+  console.log(`✅ Fase ${phase} generada correctamente (${result.count} preguntas)`);
+
 }
 </script>
 

@@ -47,7 +47,7 @@ async function handleCreateGame() {
     const game = await createGame();
 
     const playerName = "administrator";
-    gameService.connect(game.code, playerName);
+    gameService.connect(game.code, playerName, router);
 
     router.push(`/admin/${game.code}`);
   } catch (error) {
@@ -68,7 +68,7 @@ async function handleJoinGame() {
       return;
     }
 
-    gameService.connect(game.code, pName);
+    gameService.connect(game.code, pName, router);
     router.push(`/player/${id}`);
   } catch (error) {
     console.error(error);

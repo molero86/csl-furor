@@ -1,11 +1,14 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from websocket.manager import manager
+from websocket.handlers import handle_game_phase_update
 from websocket.manager import websocket_endpoint
 from sqlalchemy.orm import Session
 import random, string
 from database import get_db
 from database import Base, engine, SessionLocal
 import models, schemas
+from models import Game, Question, GameQuestion
 
 # Crear las tablas automáticamente
 Base.metadata.create_all(bind=engine)
@@ -35,6 +38,7 @@ def generate_code():
 # ENDPOINTS
 # --------------------
 
+# GAMES ---------------------------------------------------------------------------------------------------------------------------------
 @app.post("/games", response_model=schemas.Game)
 def create_game(db: Session = Depends(get_db)):
     code = generate_code()
@@ -55,6 +59,87 @@ def get_game(game_code: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Game not found")
     return game
 
+@app.post("/games/{game_id}/generate-phase/{phase}")
+async def generate_phase(game_id: str, phase: int, db: Session = Depends(get_db)):
+    # 1️⃣ Verificar que la partida existe
+    print("Generating phase", phase, "for game", game_id)
+    game = db.query(Game).filter(Game.code == game_id).first()
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    # 2️⃣ Comprobar si la fase ya fue generada
+    existing = db.query(GameQuestion).filter(
+        GameQuestion.game_id == game.id,
+        GameQuestion.phase == phase
+    ).first()
+
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Phase {phase} already generated for this game")
+
+    # 3️⃣ Obtener preguntas comunes de esa fase
+    base_questions = db.query(Question).filter(Question.phase == phase).order_by(Question.order).all()
+    if not base_questions:
+        raise HTTPException(status_code=404, detail=f"No common questions found for phase {phase}")
+
+    # 4️⃣ Crear las preguntas de la partida (copiar)
+    game_questions = []
+    for q in base_questions:
+        gq = GameQuestion(
+            game_id=game.id,
+            base_question_id=q.id,
+            text=q.text,
+            phase=q.phase,
+            order=q.order
+        )
+        db.add(gq)
+        game_questions.append(gq)
+
+    db.commit()
+
+    await handle_game_phase_update({"phase": phase}, db, manager, game.code)
+
+    # 5️⃣ Devolver resultado
+    return {
+        "success": True,
+        "game_id": game_id,
+        "phase": phase,
+        "count": len(game_questions)
+    }
+
+@app.get("/games/{game_id}/phases/{phase}/questions")
+def get_phase_questions(game_id: str, phase: int, db: Session = Depends(get_db)):
+    # 1️⃣ Verificar que la partida existe
+    game = db.query(Game).filter(Game.code == game_id).first()
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    # 2️⃣ Buscar las preguntas de esa fase para esa partida
+    questions = (
+        db.query(GameQuestion)
+        .filter(GameQuestion.game_id == game.id, GameQuestion.phase == phase)
+        .order_by(GameQuestion.order)
+        .all()
+    )
+
+    if not questions:
+        raise HTTPException(status_code=404, detail=f"No questions found for phase {phase}")
+
+    # 3️⃣ Devolver las preguntas
+    return {
+        "game_id": game_id,
+        "phase": phase,
+        "questions": [
+            {
+                "id": q.id,
+                "text": q.text,
+                "order": q.order,
+                "base_question_id": q.base_question_id
+            }
+            for q in questions
+        ]
+    }
+
+# PLAYERS ---------------------------------------------------------------------------------------------------------------------------------
 @app.get("/games/{game_code}/players", response_model=list[schemas.Player])
 def get_players(game_code: str, db: Session = Depends(get_db)):
     game = db.query(models.Game).filter(models.Game.code == game_code).first()
@@ -82,5 +167,50 @@ def delete_player(player_id: int, db: Session = Depends(get_db)):
     db.delete(player)
     db.commit()
     return {"message": "Player deleted successfully"}
+
+# QUESTIONS (CRUD) ---------------------------------------------------------------------------------------------------------------------------------
+@app.get("/questions", response_model=list[schemas.Question])
+def get_questions(db: Session = Depends(get_db)):
+    return db.query(models.Question).order_by(models.Question.phase, models.Question.order).all()
+
+
+@app.get("/questions/{question_id}", response_model=schemas.Question)
+def get_question(question_id: int, db: Session = Depends(get_db)):
+    q = db.query(models.Question).filter(models.Question.id == question_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="Question not found")
+    return q
+
+
+@app.post("/questions", response_model=schemas.Question)
+def create_question(question: schemas.QuestionCreate, db: Session = Depends(get_db)):
+    db_q = models.Question(**question.dict())
+    db.add(db_q)
+    db.commit()
+    db.refresh(db_q)
+    return db_q
+
+
+@app.put("/questions/{question_id}", response_model=schemas.Question)
+def update_question(question_id: int, question: schemas.QuestionCreate, db: Session = Depends(get_db)):
+    q = db.query(models.Question).filter(models.Question.id == question_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="Question not found")
+    for key, value in question.dict().items():
+        setattr(q, key, value)
+    db.add(q)
+    db.commit()
+    db.refresh(q)
+    return q
+
+
+@app.delete("/questions/{question_id}")
+def delete_question(question_id: int, db: Session = Depends(get_db)):
+    q = db.query(models.Question).filter(models.Question.id == question_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="Question not found")
+    db.delete(q)
+    db.commit()
+    return {"message": "Question deleted successfully"}
 
 app.add_api_websocket_route("/ws/{game_code}", websocket_endpoint)

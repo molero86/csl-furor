@@ -1,0 +1,4 @@
+class GamePhases:
+    JOINING_USERS = 1
+    FIRST_QUESTION_ROUND = 2
+    SECOND_QUESTION_ROUND = 3

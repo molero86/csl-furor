@@ -1,9 +1,15 @@
-from fastapi import WebSocket, WebSocketDisconnect, Depends
+from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 from typing import Dict, List
 import models
-from database import get_db
-from .handlers import handle_player_join, handle_player_leave
+from database import SessionLocal
+from .handlers import (
+    handle_player_join,
+    handle_player_leave,
+    handle_player_answer,
+    handle_game_phase_update,
+    handle_change_question,
+)
 import constants.events as events
 
 class ConnectionManager:
@@ -32,24 +38,25 @@ class ConnectionManager:
                 # await connection.send_json({"type": type, **message})
                 #sending example message to broadcast
                 await connection.send_json({"type": type, "data": {**message}})
-                
-
 
 manager = ConnectionManager()
 
-
-async def websocket_endpoint(websocket: WebSocket, game_code: str, db: Session = Depends(get_db)):
+async def websocket_endpoint(websocket: WebSocket, game_code: str):
     print("Nueva llamada a websocket_endpoint")
     """Punto de entrada del WebSocket para cada partida."""
     await manager.connect(game_code, websocket)
 
     try:
-        # Comprobar que la partida existe
-        game = db.query(models.Game).filter(models.Game.code == game_code).first()
-        if not game:
-            await websocket.send_json({"error": "Game not found"})
-            await websocket.close()
-            return
+        # Comprobar que la partida existe (usar sesión corta)
+        db0 = SessionLocal()
+        try:
+            game = db0.query(models.Game).filter(models.Game.code == game_code).first()
+            if not game:
+                await websocket.send_json({"error": "Game not found"})
+                await websocket.close()
+                return
+        finally:
+            db0.close()
 
         while True:
             data = await websocket.receive_json()
@@ -57,12 +64,25 @@ async def websocket_endpoint(websocket: WebSocket, game_code: str, db: Session =
             action = data.get("action")
             print(f"Action: {action}")
 
-            if action == events.ClientEvents.JOIN_GAME:
-                await handle_player_join(data, db, manager, game_code)
-            elif action == events.ClientEvents.LEAVE_GAME:
-                await handle_player_leave(data, db, manager, game_code)
-            else:
-                await websocket.send_json({"error": f"Unknown action: {action}"})
+            # Crear una sesión corta por cada mensaje para evitar transacciones largas
+            db = SessionLocal()
+            try:
+                if action == events.ClientEvents.JOIN_GAME:
+                    await handle_player_join(data, db, manager, game_code)
+                elif action == events.ClientEvents.LEAVE_GAME:
+                    await handle_player_leave(data, db, manager, game_code)
+                elif action == events.ClientEvents.SEND_ANSWER:
+                    await handle_player_answer(data, db, manager)
+                elif action == events.ClientEvents.CHANGE_QUESTION:
+                    # Admin requested question change
+                    await handle_change_question(data, db, manager, game_code)
+                elif action == events.ClientEvents.CHANGE_PHASE:
+                    # Admin requested phase change - reuse existing handler
+                    await handle_game_phase_update(data, db, manager, game_code)
+                else:
+                    await websocket.send_json({"error": f"Unknown action: {action}"})
+            finally:
+                db.close()
 
     except WebSocketDisconnect:
         manager.disconnect(game_code, websocket)
