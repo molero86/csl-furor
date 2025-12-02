@@ -11,8 +11,15 @@ const state = reactive({
   phaseQuestions: [],
   currentPhaseQuestionIndex: 0,
   currentQuestionAnswersCount: 0,
-  _seenAnswerIds: []
+  _seenAnswerIds: [],
+  guesses: {},
+  // counts per question: { [questionId]: [ { playerId, name, count } ] }
+  guessCounts: {}
 })
+state.currentGameQuestionText = null
+
+// currently selected game_question id for phases that reference specific game questions (phase 2)
+state.currentGameQuestionId = null
 
 // Persisted session (for reconnect)
 const STORAGE_KEY = 'furor.session'
@@ -86,6 +93,9 @@ function handleMessage(router) {
       case events.SERVER_EVENTS.NEW_ANSWER:
         handle_NEW_ANSWER(msg)
         break
+      case events.SERVER_EVENTS.GUESS_UPDATED:
+        handle_GUESS_UPDATED(msg)
+        break
       default:
         console.warn("Tipo de mensaje desconocido:", msg.type)
         return
@@ -153,6 +163,48 @@ function handle_NEW_ANSWER(msg) {
     // Fallback: incrementar a la llegada de cada NEW_ANSWER
     state.currentQuestionAnswersCount = (state.currentQuestionAnswersCount || 0) + 1
   }
+
+  // Fase 2: contar por canción (original_answer_id) cuántas veces cada jugador fue seleccionado
+  try {
+    const phase = state.game?.phase
+    console.log("Current game phase in handle_NEW_ANSWER:", phase)
+    if (String(phase) === '2') {
+      const qid = ans.game_question_id ?? msg.data?.question_id ?? state.currentGameQuestionId
+      let parsed = null
+      if (ans.text) {
+        try {
+          parsed = typeof ans.text === 'string' ? JSON.parse(ans.text) : ans.text
+        } catch (e) {
+          console.debug('No se pudo parsear answer.text como JSON:', e)
+          parsed = null
+        }
+      }
+      // parsed debe ser array de objetos con original_answer_id y guessed_player_id
+      // Ejemplo: [{original_answer_id:128, guessed_player_id:171}, ...]
+      if (Array.isArray(parsed)) {
+        // Inicializar si no existe
+        if (!state.guessCounts[qid]) state.guessCounts[qid] = {}
+        for (const item of parsed) {
+          if (!item?.original_answer_id || !item?.guessed_player_id) continue
+          const aid = String(item.original_answer_id)
+          const pid = String(item.guessed_player_id)
+          if (!state.guessCounts[qid][aid]) state.guessCounts[qid][aid] = {}
+          state.guessCounts[qid][aid][pid] = (state.guessCounts[qid][aid][pid] || 0) + 1
+        }
+        // For charting, you can get for each song: state.guessCounts[qid][original_answer_id]
+      }
+    }
+  } catch (e) {
+    console.error('Error calculando conteo de guesses en handle_NEW_ANSWER', e)
+  }
+}
+function handle_GUESS_UPDATED(msg) {
+  console.log('GUESS_UPDATED RECEIVED', msg.data)
+  const qid = msg.data?.question_id
+  const mapping = msg.data?.guesses || {}
+  if (qid == null) return
+  // replace mapping for this question
+  state.guesses[qid] = mapping
 }
 
 function handle_PLAYER_LEFT(msg) {
@@ -165,6 +217,14 @@ function handle_QUESTION_CHANGED(msg) {
   // Resetear contador y lista de ids cuando cambia la pregunta
   state.currentQuestionAnswersCount = 0
   state._seenAnswerIds.splice(0)
+  // If server provided a specific game_question_id (used in phase 2), store it
+  if (msg.data?.game_question_id) {
+    state.currentGameQuestionId = msg.data.game_question_id
+  } else {
+    state.currentGameQuestionId = null
+  }
+  // also accept an optional text for the selected game question
+  state.currentGameQuestionText = msg.data?.game_question_text || null
 }
 
 function handle_GAME_UPDATED(msg) {
@@ -177,7 +237,7 @@ function handle_GAME_UPDATED(msg) {
   console.log("GAME_UPDATED RECEIVED:", state.game)
 }
 
-function handle_PHASE_CHANGED(msg, router) {
+async function handle_PHASE_CHANGED(msg, router) {
   state.game.phase = msg.data.phase
   console.log("Fase de la partida actualizada:", state.game.phase)
 
@@ -193,7 +253,19 @@ function handle_PHASE_CHANGED(msg, router) {
   // Resetear contador al cambiar de fase
   state.currentQuestionAnswersCount = 0
   state._seenAnswerIds.splice(0)
-  getPhaseQuestions(router)
+  await getPhaseQuestions(router)
+  state.currentGameQuestionId = state.phaseQuestions.length > 0 ? state.phaseQuestions[0].id : null
+  //setup currentGameQuestionText depending on currentGameQuestionId
+
+  console.log("Current Game Question ID:", state.currentGameQuestionId)
+  if (state.currentGameQuestionId) {
+    state.currentGameQuestionText = state.phaseQuestions.find(gq => gq.id === state.currentGameQuestionId)?.text || null
+  } else {
+    state.currentGameQuestionText = null
+  }
+
+  console.log("Current Game Question Text:", state.currentGameQuestionText)
+  
 }
 
 function handle_PLAYER_JOINED(msg) {
@@ -262,6 +334,8 @@ async function getPhaseQuestions(router) {
   // reset answers counter when loading questions
   state.currentQuestionAnswersCount = 0
   state._seenAnswerIds.splice(0)
+  // reset guesses mapping
+  state.guesses = {}
 }
 
 async function getCurrentPhaseQuestion(router) {
@@ -272,6 +346,24 @@ async function getCurrentPhaseQuestion(router) {
   return state.phaseQuestions[state.currentPhaseQuestionIndex] || null
 }
 
+async function getAnswersForGameQuestion(gq_id) {
+  if (!state.game?.code) throw new Error('Game not hydrated')
+
+  debugger;
+  //get questions from previous phase
+  const res2 = await fetch(`${API_URL}/games/${state.game.code}/phases/${1}/game_questions`)
+  const questionsFromPhase1 = await res2.json()
+
+  //get question corresponding to the current index
+  const questionPhase1 = questionsFromPhase1.game_questions[state.currentPhaseQuestionIndex]
+
+  const res = await fetch(`${API_URL}/game_questions/${questionPhase1.id}/answers`)
+  if (!res.ok) throw new Error('Error loading answers')
+  const data = await res.json()
+  console.log("Answers for Game Question", gq_id, data.answers)
+  return data.answers || []
+}
+
 function getQuestionCount(){
   return state.phaseQuestions.length
 }
@@ -280,8 +372,8 @@ function getQuestionCount(){
 function changePhase(nextPhase) {
   send(events.ADMIN_EVENTS.CHANGE_PHASE, { phase: nextPhase })
 }
-function changeQuestion(nextIndex) {
-  send(events.ADMIN_EVENTS.CHANGE_QUESTION, { question_index: nextIndex })
+function changeQuestion(nextIndex, extra = {}) {
+  send(events.ADMIN_EVENTS.CHANGE_QUESTION, { question_index: nextIndex, ...extra })
 }
 
 async function submitAnswer(answer) {
@@ -299,8 +391,18 @@ export default {
   getPlayers,
   getPhaseQuestions,
   getCurrentPhaseQuestion,
+  getQuestionsForPhase,
   changePhase,
   changeQuestion,
   submitAnswer,
+  getAnswersForGameQuestion,
   getQuestionCount
+}
+
+async function getQuestionsForPhase(phase) {
+  if (!state.game?.code) throw new Error('Game not hydrated')
+  const res = await fetch(`${API_URL}/games/${state.game.code}/phases/${phase}/game_questions`)
+  if (!res.ok) throw new Error('Error loading game questions for phase')
+  const data = await res.json()
+  return data.game_questions || []
 }

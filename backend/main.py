@@ -214,3 +214,39 @@ def delete_question(question_id: int, db: Session = Depends(get_db)):
     return {"message": "Question deleted successfully"}
 
 app.add_api_websocket_route("/ws/{game_code}", websocket_endpoint)
+
+
+# Answers for a given game_question (used in phase 2)
+@app.get("/game_questions/{gq_id}/answers")
+def get_answers_for_game_question(gq_id: int, db: Session = Depends(get_db)):
+    answers = db.query(models.Answer).filter(models.Answer.game_question_id == gq_id).all()
+    result = []
+    for a in answers:
+        player = db.query(models.Player).filter(models.Player.id == a.player_id).first()
+        result.append({
+            "id": a.id,
+            "text": a.text,
+            "spotify_id": a.spotify_id,
+            "player_id": a.player_id,
+            "player_name": player.name if player else None,
+        })
+    return {"question_id": gq_id, "answers": result}
+
+
+@app.get("/games/{game_code}/phases/{phase}/game_questions")
+def get_game_questions_for_phase(game_code: str, phase: int, db: Session = Depends(get_db)):
+    game = db.query(models.Game).filter(models.Game.code == game_code).first()
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    gqs = db.query(models.GameQuestion).filter(models.GameQuestion.game_id == game.id, models.GameQuestion.phase == phase).order_by(models.GameQuestion.order).all()
+    result = []
+    for gq in gqs:
+        answer_count = db.query(models.Answer).filter(models.Answer.game_question_id == gq.id).count()
+        result.append({
+            "id": gq.id,
+            "text": gq.text,
+            "order": gq.order,
+            "answer_count": answer_count,
+        })
+    return {"game_id": game_code, "phase": phase, "game_questions": result}

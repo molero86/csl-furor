@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, Text
 from sqlalchemy.orm import relationship
 from database import Base
 from sqlalchemy.inspection import inspect
@@ -84,7 +84,7 @@ class Answer(Base):
     id = Column(Integer, primary_key=True, index=True)
     player_id = Column(Integer, ForeignKey("players.id"), nullable=False)
     game_question_id = Column(Integer, ForeignKey("game_questions.id"), nullable=False)
-    text = Column(String(255), nullable=True)
+    text = Column(Text, nullable=True)
     spotify_id = Column(String(50), nullable=True)
     correct = Column(Boolean, default=False)
 
@@ -101,3 +101,20 @@ class Answer(Base):
             "correct": self.correct,
         }
         return data
+
+
+class Guess(Base):
+    __tablename__ = "guesses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    player_id = Column(Integer, ForeignKey("players.id"), nullable=False)  # who guessed
+    answer_id = Column(Integer, ForeignKey("answers.id"), nullable=False)  # which answer they guessed about
+    guessed_player_id = Column(Integer, ForeignKey("players.id"), nullable=True)  # who they guessed
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "player_id": self.player_id,
+            "answer_id": self.answer_id,
+            "guessed_player_id": self.guessed_player_id,
+        }

@@ -75,8 +75,31 @@ async def handle_game_phase_update(data, db, manager, game_code: str):
     print(f"Actualizando la fase del juego {game.code} a {new_phase}")
 
     game.phase = new_phase
+
+    # Ensure game-specific questions for this phase exist (copy base questions if needed)
+    existing = db.query(models.GameQuestion).filter(
+        models.GameQuestion.game_id == game.id,
+        models.GameQuestion.phase == new_phase
+    ).first()
+
+    if not existing:
+        # copy base questions of that phase into game_questions
+        base_questions = db.query(models.Question).filter(models.Question.phase == new_phase).order_by(models.Question.order).all()
+        if base_questions:
+            for q in base_questions:
+                gq = models.GameQuestion(
+                    game_id=game.id,
+                    base_question_id=q.id,
+                    text=q.text,
+                    phase=q.phase,
+                    order=q.order
+                )
+                db.add(gq)
+        else:
+            print(f"No common questions found for phase {new_phase} to copy into game {game.code}")
+
     db.commit()
-    print("Game phase updated in DB")
+    print("Game phase updated in DB and game questions ensured")
 
     await manager.broadcast(
         game_code,
@@ -94,10 +117,17 @@ async def handle_change_question(data, db, manager, game_code: str):
         return
 
     # Broadcast the question change to all clients of the game
+    payload = {"question_index": question_index}
+    # If admin provided a specific game_question id (phase 2), include it
+    if data.get("game_question_id"):
+        payload["game_question_id"] = data.get("game_question_id")
+    if data.get("game_question_text"):
+        payload["game_question_text"] = data.get("game_question_text")
+
     await manager.broadcast(
         game_code,
         events.ServerEvents.QUESTION_CHANGED,
-        {"question_index": question_index}
+        payload
     )
 
 async def handle_player_answer(data, db, manager):
@@ -122,4 +152,63 @@ async def handle_player_answer(data, db, manager):
         answer.get("game_code"),
         events.ServerEvents.NEW_ANSWER,
         {"answer": new_answer.to_dict()}
+    )
+
+
+async def handle_player_guess(data, db, manager, game_code: str):
+    """Handle a player's guesses (phase 2). Expects payload with 'guesses': [{answer_id, guessed_player_id}], and 'player_name'."""
+    print("Handling player guess:", data)
+    guesses = data.get("guesses") or []
+    player_name = data.get("player_name")
+    if not player_name or not guesses:
+        print("No player_name or guesses provided")
+        return
+
+    game = db.query(models.Game).filter(models.Game.code == game_code).first()
+    if not game:
+        print("Game not found")
+        return
+
+    guesser = db.query(models.Player).filter(models.Player.game_id == game.id, models.Player.name == player_name).first()
+    if not guesser:
+        print("Guesser not found")
+        return
+
+    inserted = []
+    for g in guesses:
+        answer_id = g.get("answer_id")
+        guessed_player_id = g.get("guessed_player_id")
+        if not answer_id:
+            continue
+        new_g = models.Guess(player_id=guesser.id, answer_id=answer_id, guessed_player_id=guessed_player_id)
+        db.add(new_g)
+        inserted.append(new_g)
+
+    db.commit()
+
+    # Build aggregated data for the affected question
+    # find the question id from one of the answers
+    qid = None
+    if inserted:
+        ans = db.query(models.Answer).filter(models.Answer.id == inserted[0].answer_id).first()
+        if ans:
+            qid = ans.game_question_id
+
+    # collect all guesses for answers in this question
+    guesses_rows = []
+    if qid is not None:
+        # get all answers for that question
+        answers = db.query(models.Answer).filter(models.Answer.game_question_id == qid).all()
+        answer_ids = [a.id for a in answers]
+        guesses_rows = db.query(models.Guess).filter(models.Guess.answer_id.in_(answer_ids)).all()
+
+    # Prepare payload: mapping answer_id -> list of guess dicts
+    mapping = {}
+    for gr in guesses_rows:
+        mapping.setdefault(gr.answer_id, []).append(gr.to_dict())
+
+    await manager.broadcast(
+        game_code,
+        events.ServerEvents.GUESS_UPDATED,
+        {"question_id": qid, "guesses": mapping}
     )

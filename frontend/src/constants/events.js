@@ -22,4 +22,5 @@ export const SERVER_EVENTS = {
   PHASE_CHANGED: 'phase_changed',
   QUESTION_CHANGED: 'question_changed',
   NEW_ANSWER: 'new_answer',
+  GUESS_UPDATED: 'guess_updated',
 }
