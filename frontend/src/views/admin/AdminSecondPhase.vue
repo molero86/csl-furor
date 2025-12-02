@@ -7,7 +7,7 @@
 
         <h3 class="bg-white/5 p-3 rounded">Pregunta {{ currentIndex + 1 }} / {{ gameQuestions.length }}</h3>
 
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 gap-4">
         <div class="flex flex-col items-center">
           <h2 class="font-semibold mb-2">Respuestas</h2>
           <ul :class="['w-full space-y-3 max-w-2xl', answers.length > 7 ? 'limited' : '']">
@@ -22,37 +22,24 @@
                         <p class="font-semibold text-sm track-name">{{ ans.trackName || simplifiedTitle(ans.text) }}</p>
                         <p class="text-xs text-white/70 artist-name">{{ ans.artistName || simplifiedArtist(ans.text) }}</p>
                       </div>
+                      <div class="flex items-center gap-3 ml-auto">
+                        <div class="flex-1">
+                          <div v-if="hasCountsForAnswer(ans.id)">
+                            <div v-for="item in countsForAnswerArray(ans.id)" :key="item.playerId" class="flex items-center gap-2 mb-1">
+                              <div class="text-xs w-32 name-div">{{ item.name }}</div>
+                              <progress 
+                                :value="item.percent" 
+                                max="100" 
+                                class="w-32 h-4 rounded overflow-hidden [&::-webkit-progress-bar]:bg-white/10 [&::-webkit-progress-value]:bg-green-500 [&::-moz-progress-bar]:bg-green-500"
+                              ></progress>
+                              <div class="text-xs w-6 text-right">{{ item.count }}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </li>
                   </ul>
                 </template>
-
-                <div class="w-48 text-sm">
-                  <div v-if="guessesByAnswer[ans.id] && guessesByAnswer[ans.id].length">
-                    <div v-for="g in guessesByAnswer[ans.id]" :key="g.id" class="mb-1">
-                      {{ playerName(g.guessed_player_id) }} <span class="text-white/60">(por {{ playerName(g.player_id) }})</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </li>
-          </ul>
-        </div>
-        <div>
-          <h2 class="font-semibold mb-2">Estadísticas</h2>
-          <ul class="space-y-3">
-            <li v-for="ans in answers" :key="ans.id" class="p-2 bg-white/5 rounded">
-              <div class="flex items-center gap-3">
-                <div class="flex-1">
-                  <div v-if="hasCountsForAnswer(ans.id)">
-                    <div v-for="item in countsForAnswerArray(ans.id)" :key="item.playerId" class="flex items-center gap-2 mb-1">
-                      <div class="text-xs w-24">{{ item.name }}</div>
-                      <div class="flex-1 bg-white/10 rounded h-4">
-                        <div :style="{ width: item.percent + '%'}" class="h-4 bg-green-500 rounded"></div>
-                      </div>
-                      <div class="text-xs w-6 text-right">{{ item.count }}</div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </li>
           </ul>
@@ -284,5 +271,29 @@ ul{
   margin-bottom: 20px;
   border-bottom: 2px solid red;
 }
+progress {
+  appearance: none;
+  -webkit-appearance: none;
+  margin-right: 20px;
+}
 
+progress::-webkit-progress-bar {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 0.25rem;
+}
+
+progress::-webkit-progress-value {
+  background-color: rgb(34, 197, 94);
+  border-radius: 0.25rem;
+  transition: width 0.3s ease;
+}
+
+progress::-moz-progress-bar {
+  background-color: rgb(34, 197, 94);
+  border-radius: 0.25rem;
+}
+
+.name-div {
+  width: 150px;
+}
 </style>
