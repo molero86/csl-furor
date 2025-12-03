@@ -4,8 +4,11 @@ from websocket.manager import manager
 from websocket.handlers import handle_game_phase_update
 from websocket.manager import websocket_endpoint
 from sqlalchemy.orm import Session
-import random, string
+import random, string, os
+from dotenv import load_dotenv
 from database import get_db
+
+load_dotenv()
 from database import Base, engine, SessionLocal
 import models, schemas
 from models import Game, Question, GameQuestion
@@ -16,17 +19,16 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Furor API")
 
 # --------------------
-# CORS
+# CORS - configurable via CORS_ORIGINS env var
 # --------------------
-origins = [
-    "http://localhost:5173",  # Vue local
-    "http://127.0.0.1:5173"
-    "http://192.168.68.10:4018",
-]
+cors_origins = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://127.0.0.1:5173,http://127.0.0.1:4018,http://localhost:4018,http://192.168.68.10:4018"
+).split(",")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # puedes usar ["*"] en desarrollo
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
