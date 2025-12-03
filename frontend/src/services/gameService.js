@@ -40,7 +40,9 @@ function connect(gameId, playerName, router, role = 'player') {
     return
   }
 
-  const ws = new WebSocket(`ws://localhost:8000/ws/${gameId}`)
+  // Convert API_URL (http://...) to WebSocket URL (ws://...)
+  const wsUrl = (API_URL || 'http://localhost:8000').replace(/^http/, 'ws')
+  const ws = new WebSocket(`${wsUrl}/ws/${gameId}`)
   state.ws = ws
 
   ws.onopen = () => {
