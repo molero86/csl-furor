@@ -1,4 +1,4 @@
-const API_URL = (typeof window !== 'undefined' && window.__env && window.__env.VITE_API_URL) || import.meta.env.VITE_API_URL;
+const API_URL = "http://192.168.68.10:4017";
 
 export async function createGame() {
   const response = await fetch(`${API_URL}/games`, {
