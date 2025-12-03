@@ -63,8 +63,13 @@ function connect(gameId, playerName, router, role = 'player') {
 
   ws.onmessage = handleMessage(router)
 
-  ws.onclose = () => {
-    console.log("🔌 WebSocket cerrado")
+  ws.onerror = (error) => {
+    console.error("❌ Error WebSocket:", error)
+    console.error("URL intentada:", `${wsUrl}/ws/${gameId}`)
+  }
+
+  ws.onclose = (event) => {
+    console.log("🔌 WebSocket cerrado", event.code, event.reason)
     state.connected = false
     state.ws = null
     //scheduleReconnect(router)

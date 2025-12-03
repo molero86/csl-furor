@@ -42,21 +42,27 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 async def websocket_endpoint(websocket: WebSocket, game_code: str):
-    print("Nueva llamada a websocket_endpoint")
+    print(f"🔌 Nueva conexión WebSocket solicitada para partida: {game_code}")
     """Punto de entrada del WebSocket para cada partida."""
-    await manager.connect(game_code, websocket)
-
+    
     try:
-        # Comprobar que la partida existe (usar sesión corta)
+        # Comprobar que la partida existe ANTES de aceptar (usar sesión corta)
         db0 = SessionLocal()
         try:
             game = db0.query(models.Game).filter(models.Game.code == game_code).first()
             if not game:
+                print(f"❌ Partida {game_code} NO ENCONTRADA en BD")
+                await websocket.accept()
                 await websocket.send_json({"error": "Game not found"})
                 await websocket.close()
                 return
+            else:
+                print(f"✅ Partida {game_code} encontrada (ID: {game.id})")
         finally:
             db0.close()
+        
+        # Solo conectar si la partida existe
+        await manager.connect(game_code, websocket)
 
         while True:
             data = await websocket.receive_json()
