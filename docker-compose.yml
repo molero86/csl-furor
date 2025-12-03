@@ -23,6 +23,8 @@ services:
     restart: always
     ports:
       - "4018:80"
+    environment:
+      - VITE_API_URL=${VITE_API_URL}
     networks:
       - furor_net
 
