@@ -86,7 +86,7 @@ class Answer(Base):
     game_question_id = Column(Integer, ForeignKey("game_questions.id"), nullable=False)
     text = Column(Text, nullable=True)
     spotify_id = Column(String(50), nullable=True)
-    correct = Column(Boolean, default=False)
+    correct = Column(Integer, default=0)
 
     player = relationship("Player", back_populates="answers")
     game_question = relationship("GameQuestion", back_populates="answers")

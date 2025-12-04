@@ -403,7 +403,8 @@ export default {
   changeQuestion,
   submitAnswer,
   getAnswersForGameQuestion,
-  getQuestionCount
+  getQuestionCount,
+  calculateCorrectAnswers
 }
 
 async function getQuestionsForPhase(phase) {
@@ -412,4 +413,28 @@ async function getQuestionsForPhase(phase) {
   if (!res.ok) throw new Error('Error loading game questions for phase')
   const data = await res.json()
   return data.game_questions || []
+}
+
+async function calculateCorrectAnswers(gameQuestionId) {
+  console.log('🔍 Calculando respuestas correctas para game_question_id:', gameQuestionId)
+  console.log('📍 URL del endpoint:', `${API_URL}/game_questions/${gameQuestionId}/calculate-correct`)
+  
+  const res = await fetch(`${API_URL}/game_questions/${gameQuestionId}/calculate-correct`, {
+    method: 'POST',
+  })
+  
+  console.log('📡 Response status:', res.status, res.statusText)
+  
+  if (!res.ok) {
+    const errorText = await res.text()
+    console.error('❌ Error en la respuesta:', errorText)
+    throw new Error('Error calculating correct answers')
+  }
+  
+  const data = await res.json()
+  console.log('✅ Respuestas correctas recibidas:', data)
+  console.log('📊 Total de respuestas:', data.answers?.length || 0)
+  console.log('✔️ Total correctas:', data.total_correct || 0)
+  
+  return data.answers || []
 }

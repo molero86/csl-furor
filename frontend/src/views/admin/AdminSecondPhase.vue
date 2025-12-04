@@ -36,6 +36,11 @@
                             </div>
                           </div>
                         </div>
+                        <div v-if="showCorrect" class="flex items-center ml-4 pl-4 border-l border-white/20">
+                          <div class="text-sm font-semibold text-green-400">
+                            {{ getCorrectPlayerName(ans) }}
+                          </div>
+                        </div>
                       </div>
                     </li>
                   </ul>
@@ -46,9 +51,22 @@
         </div>
       </div>
 
-      <div class="mt-4">
-        <label class="text-sm text-white block">Respuestas recibidas: {{ answers.length }} / {{ players.length }}</label>
+      <div class="mt-6 flex justify-center">
+        <button 
+          v-if="!showCorrect"
+          @click="calculateCorrect"
+          class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
+        >
+          Comprobar respuestas
+        </button>
       </div>
+
+      <button
+        class="button-comic w-full max-w-xs mt-4"
+        @click="siguientePregunta"
+      >
+        {{ buttonLabel }}
+      </button>
 
     </div>
   </div>
@@ -65,8 +83,10 @@ const counts = ref({})
 const guessCountsState = ref({}) // mirrors gameService.state.guessCounts for reactivity
 const gameQuestions = ref([])
 const currentIndex = ref(0)
+const showCorrect = ref(false)
 
 const currentQuestionText = computed(() => gameService.state.currentGameQuestionText || '')
+const buttonLabel = computed(() => true ? 'Revelar resultados' : 'Siguiente pregunta')
 
 function playerName(id) {
   const p = (gameService.state.game.players || []).find(x => x.id === id)
@@ -211,6 +231,67 @@ function next() {
     applyCurrentQuestion()
   }
 }
+
+async function calculateCorrect() {
+  console.log('🎯 Iniciando cálculo de respuestas correctas...')
+  
+  const gqId = gameService.state.currentGameQuestionId || (gameQuestions.value[currentIndex.value] && gameQuestions.value[currentIndex.value].id)
+  console.log('📝 Game Question ID:', gqId)
+  console.log('📋 Respuestas actuales antes de calcular:', answers.value.length)
+  
+  if (!gqId) {
+    console.warn('⚠️ No hay game_question_id disponible')
+    return
+  }
+  
+  try {
+    console.log('📞 Llamando a gameService.calculateCorrectAnswers...')
+    const correctAnswers = await gameService.calculateCorrectAnswers(gqId)
+    console.log('📥 Respuestas correctas recibidas del servicio:', correctAnswers)
+    
+    const updatedAnswers = answers.value.map(ans => {
+      const updated = correctAnswers.find(a => a.answer_id === ans.id)
+      if (updated) {
+        console.log(`✅ Actualizando respuesta ${ans.id}:`, {
+          correct: updated.correct,
+          player_name: updated.player_name
+        })
+        return { ...ans, correct: updated.correct, player_name: updated.player_name }
+      }
+      console.log(`ℹ️ No se encontró actualización para respuesta ${ans.id}`)
+      return ans
+    })
+    
+    answers.value = updatedAnswers
+    console.log('🔄 Respuestas actualizadas:', answers.value)
+    
+    showCorrect.value = true
+    console.log('👁️ showCorrect activado:', showCorrect.value)
+  } catch (error) {
+    console.error('❌ Error calculating correct answers:', error)
+    console.error('Stack trace:', error.stack)
+  }
+}
+
+function getCorrectPlayerName(answer) {
+  if (!answer || !answer.correct || answer.correct === 0) {
+    return '—'
+  }
+  // Mostrar nombre del jugador y su puntuación
+  let playerName = '—'
+  if (answer.player_name) {
+    playerName = answer.player_name
+  } else {
+    const correctPlayer = players.value.find(p => p.id === answer.player_id)
+    playerName = correctPlayer ? correctPlayer.name : '—'
+  }
+  return `${playerName} (${answer.correct} pts)`
+}
+
+function siguientePregunta() {
+  // TODO: Implement logic to move to next question or phase
+  console.log('Siguiente pregunta')
+}
 </script>
 
 <style scoped>
@@ -269,7 +350,6 @@ ul{
 .answer-item{
   transition: background-color 0.3s;
   margin-bottom: 20px;
-  border-bottom: 2px solid red;
 }
 progress {
   appearance: none;
@@ -295,5 +375,9 @@ progress::-moz-progress-bar {
 
 .name-div {
   width: 150px;
+}
+
+.button-comic.bg-green-600:hover {
+  background-color: #17a34a; /* Verde más intenso al pasar el mouse */
 }
 </style>

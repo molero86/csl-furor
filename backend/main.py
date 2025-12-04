@@ -23,7 +23,7 @@ app = FastAPI(title="Furor API")
 # --------------------
 cors_origins = os.getenv(
     "CORS_ORIGINS",
-    "http://localhost:5173,http://127.0.0.1:5173,http://127.0.0.1:4018,http://localhost:4018,http://192.168.68.10:4018"
+    "http://localhost:5173,http://127.0.0.1:5173,http://127.0.0.1:4018,http://localhost:4018,http://192.168.68.10:4018,https://furor.molero.org"
 ).split(",")
 
 app.add_middleware(
@@ -253,3 +253,110 @@ def get_game_questions_for_phase(game_code: str, phase: int, db: Session = Depen
             "answer_count": answer_count,
         })
     return {"game_id": game_code, "phase": phase, "game_questions": result}
+
+
+@app.post("/game_questions/{gq_id}/calculate-correct")
+def calculate_correct_answers(gq_id: int, db: Session = Depends(get_db)):
+    """
+    Marca las respuestas correctas basándose en el JSON guardado en el campo text.
+    Lógica: 
+    1. Obtener todas las answers de la fase 2 (game_question_id)
+    2. Para cada answer, parsear el JSON del campo text
+    3. Para cada item del JSON, comparar original_answer_id.player_id con guessed_player_id
+    4. Si coinciden → correct = True
+    """
+    import json
+    
+    print(f"🔍 Calculando respuestas correctas para game_question_id: {gq_id}")
+    
+    # 1️⃣ Obtener todas las respuestas de esta pregunta (fase 2)
+    answers = db.query(models.Answer).filter(models.Answer.game_question_id == gq_id).all()
+    if not answers:
+        print(f"❌ No se encontraron respuestas para game_question_id: {gq_id}")
+        raise HTTPException(status_code=404, detail="No answers found for this game question")
+    
+    print(f"📋 Total de respuestas encontradas: {len(answers)}")
+
+    # 2️⃣ Procesar cada respuesta (cada jugador envió un JSON con sus guesses)
+    for answer in answers:
+        print(f"\n🔎 Procesando answer.id={answer.id}, player_id={answer.player_id}")
+        print(f"📄 Contenido text: {answer.text[:200] if answer.text else 'None'}...")
+        
+        # Resetear puntuación a 0
+        answer.correct = 0
+        
+        if not answer.text:
+            print("⚠️ Campo text vacío, saltando...")
+            continue
+        
+        try:
+            # Parsear el JSON del campo text
+            guesses_data = json.loads(answer.text)
+            print(f"✅ JSON parseado correctamente: {len(guesses_data)} items")
+            
+            if not isinstance(guesses_data, list):
+                print("⚠️ El JSON no es una lista, saltando...")
+                continue
+            
+            # 3️⃣ Para cada item del JSON (cada canción adivinada)
+            correct_count = 0
+            for item in guesses_data:
+                original_answer_id = item.get('original_answer_id')
+                guessed_player_id = item.get('guessed_player_id')
+                
+                if not original_answer_id or not guessed_player_id:
+                    print(f"⚠️ Item sin original_answer_id o guessed_player_id: {item}")
+                    continue
+                
+                # Obtener el player_id de la respuesta original (fase 1)
+                original_answer = db.query(models.Answer).filter(models.Answer.id == original_answer_id).first()
+                
+                if not original_answer:
+                    print(f"⚠️ No se encontró answer con id={original_answer_id}")
+                    continue
+                
+                print(f"  🎵 original_answer_id={original_answer_id} → player_id={original_answer.player_id}, guessed={guessed_player_id}")
+                
+                # Comparar: si el player_id de la canción original coincide con quien adivinaron
+                if original_answer.player_id == guessed_player_id:
+                    correct_count += 1
+                    print(f"    ✅ ¡CORRECTO!")
+                else:
+                    print(f"    ❌ Incorrecto")
+            
+            # Guardar la puntuación (1 punto por cada acierto)
+            answer.correct = correct_count
+            print(f"🎯 Respuesta {answer.id} → Puntuación: {correct_count} puntos")
+            
+        except json.JSONDecodeError as e:
+            print(f"❌ Error parseando JSON: {e}")
+            continue
+        except Exception as e:
+            print(f"❌ Error procesando answer {answer.id}: {e}")
+            continue
+    
+    # 4️⃣ Guardar cambios en la base de datos
+    db.commit()
+    print("\n💾 Cambios guardados en la base de datos")
+
+    # 5️⃣ Devolver las respuestas con información completa
+    result = []
+    for answer in answers:
+        player = db.query(models.Player).filter(models.Player.id == answer.player_id).first()
+        result.append({
+            "answer_id": answer.id,
+            "player_id": answer.player_id,
+            "player_name": player.name if player else None,
+            "text": answer.text,
+            "spotify_id": answer.spotify_id,
+            "correct": answer.correct,
+        })
+
+    total_points = sum(a.correct for a in answers)
+    print(f"\n📊 Resultado final: {total_points} puntos totales entre {len(answers)} jugadores")
+
+    return {
+        "game_question_id": gq_id,
+        "answers": result,
+        "total_points": total_points
+    }

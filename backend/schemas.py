@@ -77,7 +77,7 @@ class GameQuestion(GameQuestionBase):
 class AnswerBase(BaseModel):
     text: Optional[str] = None
     spotify_id: Optional[str] = None
-    correct: bool = False
+    correct: int = 0
 
 
 class AnswerCreate(AnswerBase):
