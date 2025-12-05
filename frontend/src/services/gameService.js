@@ -405,7 +405,8 @@ export default {
   getAnswersForGameQuestion,
   getQuestionCount,
   calculateCorrectAnswers,
-  getPhase2Scores
+  getPhase2Scores,
+  getPhase1Songs
 }
 
 async function getQuestionsForPhase(phase) {
@@ -451,4 +452,16 @@ async function getPhase2Scores() {
   const data = await res.json()
   console.log('📊 Puntuaciones recibidas:', data)
   return data
+}
+
+async function getPhase1Songs() {
+  if (!state.game?.code) throw new Error('Game not hydrated')
+  console.log('🎵 Obteniendo canciones de fase 1 para game:', state.game.code)
+  
+  const res = await fetch(`${API_URL}/games/${state.game.code}/phase1/songs`)
+  if (!res.ok) throw new Error('Error loading phase 1 songs')
+  
+  const data = await res.json()
+  console.log('📀 Canciones recibidas:', data.songs?.length || 0)
+  return data.songs || []
 }

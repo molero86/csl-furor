@@ -493,3 +493,49 @@ def assign_player_group(player_id: int, group_data: dict, db: Session = Depends(
     print(f"✅ Jugador {player.name} asignado al grupo {group}")
     
     return player.to_dict()
+
+
+@app.get("/games/{game_code}/phase1/songs")
+def get_phase1_songs(game_code: str, db: Session = Depends(get_db)):
+    """
+    Obtiene todas las canciones únicas de las respuestas de la fase 1.
+    """
+    game = db.query(models.Game).filter(models.Game.code == game_code).first()
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    
+    # Obtener todas las game_questions de la fase 1 para este juego
+    phase1_game_questions = db.query(models.GameQuestion).filter(
+        models.GameQuestion.game_id == game.id,
+        models.GameQuestion.phase == 1
+    ).all()
+    
+    if not phase1_game_questions:
+        return {"songs": []}
+    
+    # Obtener todos los IDs de las game_questions de fase 1
+    gq_ids = [gq.id for gq in phase1_game_questions]
+    
+    # Obtener todas las respuestas de estas preguntas
+    answers = db.query(models.Answer).filter(
+        models.Answer.game_question_id.in_(gq_ids),
+        models.Answer.spotify_id.isnot(None)
+    ).all()
+    
+    # Crear un diccionario para eliminar duplicados por spotify_id
+    songs_dict = {}
+    for answer in answers:
+        if answer.spotify_id and answer.spotify_id not in songs_dict:
+            songs_dict[answer.spotify_id] = {
+                "spotify_id": answer.spotify_id,
+                "text": answer.text,
+                "player_id": answer.player_id,
+                "player_name": answer.player.name if answer.player else None
+            }
+    
+    # Convertir a lista
+    songs_list = list(songs_dict.values())
+    
+    print(f"✅ Encontradas {len(songs_list)} canciones únicas en fase 1 para el juego {game_code}")
+    
+    return {"songs": songs_list}

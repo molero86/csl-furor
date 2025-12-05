@@ -93,7 +93,7 @@
             class="button-comic text-2xl py-6 px-12"
             @click="continuarJuego"
           >
-            Continuar a Fase 3 →
+            Continuar a Fase 4 →
           </button>
         </div>
       </div>
@@ -136,9 +136,8 @@ async function loadScores() {
 }
 
 function continuarJuego() {
-  // TODO: Implementar lógica para continuar a la fase 3 real
-  console.log('Continuando a fase 3...')
-  alert('Fase 3: Completar canción - Por implementar')
+  console.log('Continuando a fase 4...')
+  gameService.changePhase(4)
 }
 
 function getMedalIcon(index) {
