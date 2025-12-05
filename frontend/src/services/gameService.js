@@ -14,7 +14,10 @@ const state = reactive({
   _seenAnswerIds: [],
   guesses: {},
   // counts per question: { [questionId]: [ { playerId, name, count } ] }
-  guessCounts: {}
+  guessCounts: {},
+  // buzzer state
+  buzzerWinner: null,
+  buzzerEnabled: true
 })
 state.currentGameQuestionText = null
 
@@ -102,6 +105,12 @@ function handleMessage(router) {
         break
       case events.SERVER_EVENTS.GUESS_UPDATED:
         handle_GUESS_UPDATED(msg)
+        break
+      case events.SERVER_EVENTS.BUZZER_WINNER:
+        handle_BUZZER_WINNER(msg)
+        break
+      case events.SERVER_EVENTS.BUZZER_RESET:
+        handle_BUZZER_RESET(msg)
         break
       default:
         console.warn("Tipo de mensaje desconocido:", msg.type)
@@ -283,6 +292,17 @@ function handle_PLAYER_JOINED(msg) {
     return { ...p, group: existing?.group ?? null }
   })
 }
+
+function handle_BUZZER_WINNER(msg) {
+  console.log('BUZZER_WINNER RECEIVED:', msg.data)
+  state.buzzerWinner = msg.data
+}
+
+function handle_BUZZER_RESET(msg) {
+  console.log('BUZZER_RESET RECEIVED')
+  state.buzzerWinner = null
+  state.buzzerEnabled = true
+}
 //*************************************************************************************************************/
 
 // Utils de hidratación antes de usar APIs que requieren game.code/phase
@@ -379,6 +399,7 @@ function getQuestionCount(){
 function changePhase(nextPhase) {
   send(events.ADMIN_EVENTS.CHANGE_PHASE, { phase: nextPhase })
 }
+
 function changeQuestion(nextIndex, extra = {}) {
   send(events.ADMIN_EVENTS.CHANGE_QUESTION, { question_index: nextIndex, ...extra })
 }
@@ -388,26 +409,20 @@ async function submitAnswer(answer) {
   await send(events.PLAYER_EVENTS.SEND_ANSWER, { answer: answer })
 }
 
-export default {
-  state,
-  connect,
-  disconnect,
-  send,
-  initFromStorage,
-  requestSync,
-  getPlayers,
-  getPhaseQuestions,
-  getCurrentPhaseQuestion,
-  getQuestionsForPhase,
-  changePhase,
-  changeQuestion,
-  submitAnswer,
-  getAnswersForGameQuestion,
-  getQuestionCount,
-  calculateCorrectAnswers,
-  getPhase2Scores,
-  getPhase1Songs,
-  getCombinedScores
+function pressBuzzer(playerName) {
+  if (!state.buzzerEnabled) {
+    console.log('🔔 Buzzer desactivado')
+    return false
+  }
+  console.log("🔔 Presionando buzzer:", playerName)
+  state.buzzerEnabled = false
+  send(events.PLAYER_EVENTS.BUZZER_PRESSED, { player_name: playerName })
+  return true
+}
+
+function resetBuzzer() {
+  console.log("🔄 Reseteando buzzer")
+  send(events.ADMIN_EVENTS.BUZZER_RESET, {})
 }
 
 async function getQuestionsForPhase(phase) {
@@ -478,4 +493,28 @@ async function getCombinedScores(gameCode = null) {
   const data = await res.json()
   console.log('📊 Puntuaciones combinadas recibidas:', data)
   return data
+}
+
+export default {
+  state,
+  connect,
+  disconnect,
+  send,
+  initFromStorage,
+  requestSync,
+  getPlayers,
+  getPhaseQuestions,
+  getCurrentPhaseQuestion,
+  getQuestionsForPhase,
+  changePhase,
+  changeQuestion,
+  submitAnswer,
+  getAnswersForGameQuestion,
+  getQuestionCount,
+  calculateCorrectAnswers,
+  getPhase2Scores,
+  getPhase1Songs,
+  getCombinedScores,
+  pressBuzzer,
+  resetBuzzer
 }

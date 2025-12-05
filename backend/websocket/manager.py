@@ -9,6 +9,9 @@ from .handlers import (
     handle_player_answer,
     handle_game_phase_update,
     handle_change_question,
+    handle_buzzer_pressed,
+    handle_buzzer_reset,
+    handle_show_final_scores,
 )
 import constants.events as events
 
@@ -85,6 +88,12 @@ async def websocket_endpoint(websocket: WebSocket, game_code: str):
                 elif action == events.ClientEvents.CHANGE_PHASE:
                     # Admin requested phase change - reuse existing handler
                     await handle_game_phase_update(data, db, manager, game_code)
+                elif action == events.ClientEvents.BUZZER_PRESSED:
+                    await handle_buzzer_pressed(data, db, manager, game_code)
+                elif action == events.ClientEvents.BUZZER_RESET:
+                    await handle_buzzer_reset(data, db, manager, game_code)
+                elif action == events.ClientEvents.SHOW_FINAL_SCORES:
+                    await handle_show_final_scores(data, db, manager, game_code)
                 else:
                     await websocket.send_json({"error": f"Unknown action: {action}"})
             finally:

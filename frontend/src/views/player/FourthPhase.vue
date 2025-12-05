@@ -7,59 +7,41 @@
         <h1>Fase 4. Canta la canción</h1>
       </div>
 
-      <!-- Pantalla principal -->
-      <div v-else class="flex flex-col justify-between items-center w-full h-full py-10 text-white">
+      <!-- Pantalla principal - Botón de Buzzer -->
+      <div v-else class="flex flex-col justify-center items-center w-full h-full py-10 text-white">
         
-        <!-- Pregunta -->
-        <div class="text-center mt-10 w-full max-w-md">
-          <h2 class="text-2xl font-bold mb-6">{{ question }}</h2>
-
-          <!-- Campo de texto -->
-          <input
-            v-model="query"
-            @input="debouncedSearch"
-            type="text"
-            placeholder="Busca una canción..."
-            class="input-comic w-full text-center"
-          />
-
-          <!-- Resultados -->
-          <ul v-if="songs.length" class="mt-4 bg-white/10 rounded-2xl p-2 divide-y divide-white/20">
-            <li
-              v-for="song in songs"
-              :key="song.trackId"
-              class="flex items-center gap-3 p-2 hover:bg-white/20 cursor-pointer rounded-xl"
-              @click="selectSong(song)"
-            >
-              <img :src="song.artworkUrl60" class="w-10 h-10 rounded-lg" alt="cover" />
-              <div class="text-left">
-                <p class="font-semibold text-sm track-name">{{ song.trackName }}</p>
-                <p class="text-xs text-white/70 artist-name">{{ song.artistName }}</p>
-              </div>
-            </li>
-          </ul>
-
-          <!-- Canción seleccionada -->
-          <ul v-if="selectedSong" class="mt-4 bg-white/10 rounded-2xl p-2 divide-y divide-white/20">
-            <li class="flex items-center gap-3 p-2 hover:bg-white/20 cursor-pointer rounded-xl">
-              <img :src="selectedSong.artworkUrl60" class="w-10 h-10 rounded-lg" alt="cover" />
-              <div class="text-left">
-                <p class="font-semibold text-sm track-name">{{ selectedSong.trackName }}</p>
-                <p class="text-xs text-white/70 artist-name">{{ selectedSong.artistName }}</p>
-              </div>
-            </li>
-          </ul>
-
+        <!-- Mensaje de estado -->
+        <div v-if="buzzerWinner" class="text-center mb-8">
+          <h2 class="text-4xl font-bold mb-4">
+            {{ buzzerWinner.player_name === playerName ? '¡Tú respondes!' : `Responde: ${buzzerWinner.player_name}` }}
+          </h2>
+          <p class="text-2xl text-white/70">
+            {{ buzzerWinner.player_name === playerName ? '🎤' : '⏳ Espera tu turno' }}
+          </p>
         </div>
 
-        <!-- Botón Enviar -->
-        <button
-          class="button-comic px-6 py-2 mt-auto mb-10"
-          @click="submitAnswer"
-          :disabled="!selectedSong"
-        >
-          Enviar
-        </button>
+        <!-- Botón de Buzzer -->
+        <div v-if="!buzzerWinner" class="buzzer-container">
+          <button
+            class="buzzer-button"
+            :class="{ 'buzzer-disabled': !buzzerEnabled }"
+            @click="pressBuzzer"
+            :disabled="!buzzerEnabled"
+          >
+            <div class="buzzer-content">
+              <div class="buzzer-icon">🔔</div>
+              <div class="buzzer-text">{{ buzzerEnabled ? '¡PRESIONA!' : 'ESPERANDO...' }}</div>
+            </div>
+          </button>
+          <p class="buzzer-hint">Presiona cuando la canción termine</p>
+        </div>
+
+        <!-- Indicador de espera si ya presionó -->
+        <div v-else-if="!buzzerWinner && !buzzerEnabled" class="text-center">
+          <div class="text-6xl mb-4 animate-pulse">⏳</div>
+          <p class="text-2xl">Esperando...</p>
+        </div>
+
       </div>
     </transition>
 
@@ -67,56 +49,43 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import gameService from '../../services/gameService'
 
 const showIntro = ref(true)
-let currentPhaseQuestion = ref("")
-const query = ref("")
-const songs = ref([])
-const selectedSong = ref(null)
-let searchTimeout = null
+const playerName = ref('')
 
-async function searchSongs() {
-  if (!query.value.trim()) {
-    songs.value = []
-    return
+// Estado del buzzer desde gameService
+const buzzerWinner = computed(() => gameService.state.buzzerWinner)
+const buzzerEnabled = computed(() => gameService.state.buzzerEnabled)
+
+function pressBuzzer() {
+  if (!buzzerEnabled.value) return
+  
+  const success = gameService.pressBuzzer(playerName.value)
+  if (success) {
+    console.log('🔔 Buzzer presionado por:', playerName.value)
   }
-
-  const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query.value)}&entity=song&limit=5`)
-  const data = await res.json()
-  songs.value = data.results
-}
-
-function debouncedSearch() {
-  clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(searchSongs, 500) // Espera 0.5s tras dejar de escribir
-}
-
-function selectSong(song) {
-  selectedSong.value = song
-  query.value = `${song.trackName} - ${song.artistName}`
-  songs.value = [] // Ocultar resultados tras seleccionar
-}
-
-function submitAnswer() {
-  console.log("🎵 Canción seleccionada:", selectedSong.value)
-  alert(`Has elegido: ${selectedSong.value.trackName} - ${selectedSong.value.artistName}`)
 }
 
 onMounted(() => {
-  //Check each second what is the current question
-  setInterval(async () => {
-    const question = await gameService.getCurrentPhaseQuestion()
-    console.log("Pregunta actual:", question)
-    if (question) {
-      currentPhaseQuestion.value = question.text
-    }
-  }, 1000)
-
+  // Obtener el nombre del jugador del estado
+  playerName.value = gameService.state.player?.name || 'Jugador'
+  
   setTimeout(() => {
     showIntro.value = false
   }, 3000)
+})
+
+// Watch para log de cambios en el estado del buzzer
+watch(buzzerWinner, (newWinner) => {
+  if (newWinner) {
+    console.log('🏆 Ganador del buzzer:', newWinner.player_name)
+  }
+})
+
+watch(buzzerEnabled, (enabled) => {
+  console.log('🔔 Buzzer habilitado:', enabled)
 })
 </script>
 
@@ -132,34 +101,106 @@ onMounted(() => {
 .fade-enter-from, .fade-leave-to {
   opacity: 0;
 }
-img {
-  margin-right: 8px !important;
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
-p {
-  margin: 0 !important;
+
+.buzzer-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
 }
-ul{
-  list-style: none;
-  margin: 1rem;
-  padding: 1rem;
-  width: 85%;
-  max-width: 500px;
-  background: rgba(0, 0, 0, 0.6);
-  border-radius: 1rem;
-  backdrop-filter: blur(12px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+
+.buzzer-button {
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  border: 8px solid #fbbf24;
+  background: linear-gradient(145deg, #fbbf24, #f59e0b);
+  box-shadow: 
+    0 20px 60px rgba(251, 191, 36, 0.6),
+    inset 0 -10px 30px rgba(0, 0, 0, 0.3),
+    inset 0 10px 30px rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.buzzer-button:hover:not(.buzzer-disabled) {
+  transform: scale(1.05);
+  box-shadow: 
+    0 25px 70px rgba(251, 191, 36, 0.8),
+    inset 0 -10px 30px rgba(0, 0, 0, 0.3),
+    inset 0 10px 30px rgba(255, 255, 255, 0.3);
+}
+
+.buzzer-button:active:not(.buzzer-disabled) {
+  transform: scale(0.95);
+  box-shadow: 
+    0 10px 30px rgba(251, 191, 36, 0.4),
+    inset 0 5px 20px rgba(0, 0, 0, 0.5);
+}
+
+.buzzer-button.buzzer-disabled {
+  background: linear-gradient(145deg, #6b7280, #4b5563);
+  border-color: #6b7280;
+  box-shadow: 
+    0 10px 30px rgba(107, 114, 128, 0.3),
+    inset 0 -5px 15px rgba(0, 0, 0, 0.3);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.buzzer-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 1rem;
+}
+
+.buzzer-icon {
+  font-size: 6rem;
+  animation: ring 2s ease-in-out infinite;
+}
+
+@keyframes ring {
+  0%, 100% { transform: rotate(0deg); }
+  10% { transform: rotate(15deg); }
+  20% { transform: rotate(-15deg); }
+  30% { transform: rotate(10deg); }
+  40% { transform: rotate(-10deg); }
+  50% { transform: rotate(0deg); }
+}
+
+.buzzer-text {
+  font-size: 2rem;
+  font-weight: 900;
   color: white;
-  overflow-y: auto;
-  max-height: 300px;
+  text-shadow: 
+    0 2px 10px rgba(0, 0, 0, 0.5),
+    0 0 20px rgba(251, 191, 36, 0.5);
+  letter-spacing: 0.1em;
 }
 
-.track-name {
-  font-size: 1rem;
-  font-weight: 500;
-}
-.artist-name {
-  font-size: 0.85rem;
-  color: #cccccc;
+.buzzer-disabled .buzzer-icon {
+  animation: none;
 }
 
+.buzzer-hint {
+  font-size: 1.25rem;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
 </style>

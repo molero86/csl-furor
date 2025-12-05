@@ -12,6 +12,7 @@ import FirstPhase from '../views/player/FirstPhase.vue'
 import SecondPhase from '../views/player/SecondPhase.vue'
 import ThirdPhase from '../views/player/ThirdPhase.vue'
 import FourthPhase from '../views/player/FourthPhase.vue'
+import PlayerFinalScores from '../views/player/FinalScores.vue'
 
 
 const routes = [
@@ -21,6 +22,7 @@ const routes = [
   { path: '/player/:gameId/2', component: SecondPhase },
   { path: '/player/:gameId/3', component: ThirdPhase },
   { path: '/player/:gameId/4', component: FourthPhase },
+  { path: '/player/:gameId/final-scores', component: PlayerFinalScores },
   { path: '/admin/:gameId', component: AdminHome },
   { path: '/admin/:gameId/2', component: AdminSecondPhase },
   { path: '/admin/:gameId/3', component: AdminThirdPhase },

@@ -8,6 +8,9 @@ class ClientEvents:
     START_GAME = "start_game"
     CHANGE_PHASE = "change_phase"
     CHANGE_QUESTION = "change_question"
+    BUZZER_PRESSED = "buzzer_pressed"
+    BUZZER_RESET = "buzzer_reset"
+    SHOW_FINAL_SCORES = "show_final_scores"
 
 
 class ServerEvents:
@@ -17,4 +20,7 @@ class ServerEvents:
     PHASE_CHANGED = "phase_changed"
     QUESTION_CHANGED = "question_changed"
     NEW_ANSWER = "new_answer"
+    BUZZER_WINNER = "buzzer_winner"
+    BUZZER_RESET = "buzzer_reset"
+    SHOW_FINAL_SCORES = "show_final_scores"
     

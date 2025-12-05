@@ -61,6 +61,21 @@
         </p>
       </div>
 
+      <!-- Indicador de Buzzer Winner -->
+      <div v-if="buzzerWinner && selectedSong && !spinning" class="buzzer-winner-card">
+        <div class="winner-content">
+          <div class="winner-icon">🏆</div>
+          <h3 class="winner-title">¡Responde!</h3>
+          <p class="winner-name">{{ buzzerWinner.player_name }}</p>
+          <button
+            class="button-comic reset-buzzer-button"
+            @click="resetBuzzer"
+          >
+            🔄 Resetear Buzzer
+          </button>
+        </div>
+      </div>
+
       <!-- Canción seleccionada (resultado final) -->
       <div v-if="selectedSong && !spinning" class="result-container">
         <!-- Flip Card Container (toda la tarjeta) -->
@@ -243,7 +258,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import gameService from '../../services/gameService'
 
 const loading = ref(false)
@@ -255,6 +270,9 @@ const displaySongs = ref([])
 const flipped = ref(false)
 const lyrics = ref('')
 const loadingLyrics = ref(false)
+
+// Estado del buzzer
+const buzzerWinner = computed(() => gameService.state.buzzerWinner)
 
 // Variables para el formulario de puntos
 const players = ref([])
@@ -269,6 +287,13 @@ onMounted(async () => {
   await loadSongs()
   await loadPlayers()
   await loadCurrentGameQuestion()
+})
+
+// Watch para mostrar notificación cuando alguien presiona el buzzer
+watch(buzzerWinner, (newWinner) => {
+  if (newWinner) {
+    console.log('🏆 Ganador del buzzer:', newWinner.player_name)
+  }
 })
 
 async function loadSongs() {
@@ -377,9 +402,17 @@ function nextQuestion() {
   flipped.value = false
   lyrics.value = ''
   
+  // Resetear el buzzer para la siguiente canción
+  gameService.resetBuzzer()
+  
   // Resetear la canción seleccionada para poder elegir otra
   selectedSong.value = null
   displaySongs.value = []
+}
+
+function resetBuzzer() {
+  console.log('🔄 Reseteando buzzer manualmente')
+  gameService.resetBuzzer()
 }
 
 function finishPhase() {
@@ -1182,5 +1215,60 @@ async function submitPoints() {
   background: rgba(239, 68, 68, 0.2);
   border: 2px solid #ef4444;
   color: #fca5a5;
+}
+
+/* Buzzer Winner Card */
+.buzzer-winner-card {
+  width: 100%;
+  max-width: 500px;
+  background: linear-gradient(145deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.1));
+  border: 4px solid #fbbf24;
+  border-radius: 2rem;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 20px 60px rgba(251, 191, 36, 0.5);
+  animation: slideIn 0.5s ease-out, pulse 2s ease-in-out infinite;
+}
+
+.winner-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.winner-icon {
+  font-size: 5rem;
+  animation: bounce 1s ease-in-out infinite;
+}
+
+.winner-title {
+  font-size: 2rem;
+  font-weight: 900;
+  color: white;
+  text-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.winner-name {
+  font-size: 3rem;
+  font-weight: 900;
+  color: #fbbf24;
+  text-shadow: 
+    0 4px 8px rgba(0, 0, 0, 0.5),
+    0 0 20px rgba(251, 191, 36, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.reset-buzzer-button {
+  margin-top: 1rem;
+  padding: 0.75rem 2rem !important;
+  font-size: 1.125rem !important;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+  border-color: #3b82f6 !important;
+}
+
+.reset-buzzer-button:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
 }
 </style>

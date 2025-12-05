@@ -212,3 +212,80 @@ async def handle_player_guess(data, db, manager, game_code: str):
         events.ServerEvents.GUESS_UPDATED,
         {"question_id": qid, "guesses": mapping}
     )
+
+
+# Variable global para trackear el primer buzzer presionado por partida
+buzzer_winners = {}
+
+async def handle_buzzer_pressed(data, db, manager, game_code: str):
+    """Handle buzzer press from a player. Only the first press is registered."""
+    print("Handling buzzer press:", data)
+    player_name = data.get("player_name")
+    if not player_name:
+        print("No player_name provided")
+        return
+
+    game = db.query(models.Game).filter(models.Game.code == game_code).first()
+    if not game:
+        print("Game not found")
+        return
+
+    player = db.query(models.Player).filter(
+        models.Player.game_id == game.id, 
+        models.Player.name == player_name
+    ).first()
+    
+    if not player:
+        print("Player not found")
+        return
+
+    # Check if someone already pressed the buzzer for this game
+    if game_code in buzzer_winners and buzzer_winners[game_code] is not None:
+        print(f"Buzzer already pressed by {buzzer_winners[game_code]}")
+        return
+
+    # Register this player as the winner
+    buzzer_winners[game_code] = {
+        "player_id": player.id,
+        "player_name": player.name
+    }
+    
+    print(f"🔔 Buzzer winner: {player.name}")
+
+    # Broadcast to all clients who won
+    await manager.broadcast(
+        game_code,
+        events.ServerEvents.BUZZER_WINNER,
+        {
+            "player_id": player.id,
+            "player_name": player.name
+        }
+    )
+
+
+async def handle_buzzer_reset(data, db, manager, game_code: str):
+    """Reset buzzer state for the next song."""
+    print(f"Resetting buzzer for game {game_code}")
+    
+    # Clear the winner for this game
+    if game_code in buzzer_winners:
+        buzzer_winners[game_code] = None
+    
+    # Broadcast reset to all clients
+    await manager.broadcast(
+        game_code,
+        events.ServerEvents.BUZZER_RESET,
+        {}
+    )
+
+
+async def handle_show_final_scores(data, db, manager, game_code: str):
+    """Notify all players to navigate to final scores."""
+    print(f"Admin requesting show final scores for game {game_code}")
+    
+    # Broadcast to all clients to navigate to final scores
+    await manager.broadcast(
+        game_code,
+        events.ServerEvents.SHOW_FINAL_SCORES,
+        {}
+    )
