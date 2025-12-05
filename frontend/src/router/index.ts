@@ -5,6 +5,7 @@ import AdminFirstPhase from '../views/admin/AdminFirstPhase.vue'
 import AdminSecondPhase from '../views/admin/AdminSecondPhase.vue'
 import AdminThirdPhase from '../views/admin/AdminThirdPhase.vue'
 import AdminFourthPhase from '../views/admin/AdminFourthPhase.vue'
+import FinalScores from '../views/admin/FinalScores.vue'
 import Configuration from '../views/admin/Configuration.vue'
 import Home from '../views/Home.vue'
 import FirstPhase from '../views/player/FirstPhase.vue'
@@ -24,8 +25,9 @@ const routes = [
   { path: '/admin/:gameId/2', component: AdminSecondPhase },
   { path: '/admin/:gameId/3', component: AdminThirdPhase },
   { path: '/admin/:gameId/4', component: AdminFourthPhase },
-  { path: '/admin/:gameId/1', component: AdminFirstPhase }
-  ,{ path: '/configuration', component: Configuration }
+  { path: '/admin/:gameId/1', component: AdminFirstPhase },
+  { path: '/admin/:gameId/final-scores', component: FinalScores },
+  { path: '/configuration', component: Configuration }
 ]
 
 export default createRouter({

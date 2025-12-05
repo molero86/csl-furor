@@ -216,7 +216,63 @@ def delete_question(question_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Question deleted successfully"}
 
+
+@app.post("/questions/initialize-phase/{phase}")
+def initialize_phase_questions(phase: int, db: Session = Depends(get_db)):
+    """
+    Inicializa las preguntas base para una fase si no existen.
+    Útil para crear preguntas por defecto de fases nuevas.
+    """
+    # Verificar si ya existen preguntas para esta fase
+    existing = db.query(models.Question).filter(models.Question.phase == phase).first()
+    if existing:
+        return {
+            "message": f"Phase {phase} questions already exist",
+            "existing": True,
+            "count": db.query(models.Question).filter(models.Question.phase == phase).count()
+        }
+    
+    # Crear preguntas por defecto según la fase
+    questions_to_create = []
+    
+    if phase == 4:
+        questions_to_create = [
+            models.Question(
+                phase=4,
+                order=1,
+                text="Canta la canción",
+                type="performance"
+            )
+        ]
+    else:
+        raise HTTPException(status_code=400, detail=f"No default questions defined for phase {phase}")
+    
+    for q in questions_to_create:
+        db.add(q)
+    
+    db.commit()
+    
+    return {
+        "message": f"Phase {phase} questions initialized successfully",
+        "existing": False,
+        "count": len(questions_to_create)
+    }
+
 app.add_api_websocket_route("/ws/{game_code}", websocket_endpoint)
+
+
+# Create an answer with points (used in phase 4 scoring)
+@app.post("/answers", response_model=schemas.Answer)
+def create_answer(answer: schemas.AnswerCreate, db: Session = Depends(get_db)):
+    """
+    Crea una respuesta con puntos asignados.
+    Usado principalmente en Fase 4 para asignar puntos por cantar.
+    """
+    db_answer = models.Answer(**answer.dict())
+    db.add(db_answer)
+    db.commit()
+    db.refresh(db_answer)
+    return db_answer
 
 
 # Answers for a given game_question (used in phase 2)
@@ -388,6 +444,89 @@ def calculate_correct_answers(gq_id: int, db: Session = Depends(get_db)):
         "songs": songs_result,
         "players": players_result,
         "total_points": total_points
+    }
+
+
+@app.get("/games/{game_code}/combined-scores")
+def get_combined_scores(game_code: str, db: Session = Depends(get_db)):
+    """
+    Obtiene el ranking combinado de puntuaciones de Fase 2 y Fase 4.
+    Devuelve puntuaciones individuales y por grupos.
+    """
+    print(f"🏆 Obteniendo puntuaciones combinadas para game: {game_code}")
+    
+    # 1️⃣ Obtener el juego
+    game = db.query(models.Game).filter(models.Game.code == game_code).first()
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    
+    # 2️⃣ Obtener todas las game_questions de fase 2 y fase 4
+    phase_game_questions = db.query(models.GameQuestion).filter(
+        models.GameQuestion.game_id == game.id,
+        models.GameQuestion.phase.in_([2, 4])
+    ).all()
+    
+    if not phase_game_questions:
+        print("⚠️ No hay preguntas de fase 2 o 4")
+        return {"players": [], "groups": [], "total_questions": 0}
+    
+    gq_ids = [gq.id for gq in phase_game_questions]
+    
+    # 3️⃣ Obtener todas las respuestas de fase 2 y 4
+    answers = db.query(models.Answer).filter(
+        models.Answer.game_question_id.in_(gq_ids)
+    ).all()
+    
+    print(f"📋 Encontradas {len(answers)} respuestas de fase 2 y 4")
+    
+    # 4️⃣ Calcular puntuaciones por jugador
+    player_scores = {}
+    for answer in answers:
+        player_id = answer.player_id
+        points = answer.correct if isinstance(answer.correct, int) else 0
+        
+        if player_id not in player_scores:
+            player = db.query(models.Player).filter(models.Player.id == player_id).first()
+            player_scores[player_id] = {
+                "player_id": player_id,
+                "player_name": player.name if player else "Unknown",
+                "group": getattr(player, 'group', None) if player else None,
+                "total_points": 0
+            }
+        
+        player_scores[player_id]["total_points"] += points
+    
+    # Convertir a lista y ordenar por puntuación descendente
+    players_ranking = sorted(player_scores.values(), key=lambda x: x["total_points"], reverse=True)
+    
+    print(f"👥 Ranking individual combinado: {len(players_ranking)} jugadores")
+    for idx, p in enumerate(players_ranking, 1):
+        print(f"  {idx}. {p['player_name']}: {p['total_points']} pts")
+    
+    # 5️⃣ Calcular puntuaciones por grupo (si existen)
+    group_scores = {}
+    for p in players_ranking:
+        group = p.get("group")
+        if group:
+            if group not in group_scores:
+                group_scores[group] = {
+                    "group_name": group,
+                    "total_points": 0,
+                    "player_count": 0
+                }
+            group_scores[group]["total_points"] += p["total_points"]
+            group_scores[group]["player_count"] += 1
+    
+    groups_ranking = sorted(group_scores.values(), key=lambda x: x["total_points"], reverse=True)
+    
+    print(f"🎭 Ranking por grupos: {len(groups_ranking)} grupos")
+    for idx, g in enumerate(groups_ranking, 1):
+        print(f"  {idx}. {g['group_name']}: {g['total_points']} pts ({g['player_count']} jugadores)")
+    
+    return {
+        "players": players_ranking,
+        "groups": groups_ranking,
+        "total_questions": len(phase_game_questions)
     }
 
 

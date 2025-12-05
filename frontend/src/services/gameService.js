@@ -406,7 +406,8 @@ export default {
   getQuestionCount,
   calculateCorrectAnswers,
   getPhase2Scores,
-  getPhase1Songs
+  getPhase1Songs,
+  getCombinedScores
 }
 
 async function getQuestionsForPhase(phase) {
@@ -464,4 +465,17 @@ async function getPhase1Songs() {
   const data = await res.json()
   console.log('📀 Canciones recibidas:', data.songs?.length || 0)
   return data.songs || []
+}
+
+async function getCombinedScores(gameCode = null) {
+  const code = gameCode || state.game?.code
+  if (!code) throw new Error('Game not hydrated')
+  console.log('🏆 Obteniendo puntuaciones combinadas para game:', code)
+  
+  const res = await fetch(`${API_URL}/games/${code}/combined-scores`)
+  if (!res.ok) throw new Error('Error loading combined scores')
+  
+  const data = await res.json()
+  console.log('📊 Puntuaciones combinadas recibidas:', data)
+  return data
 }

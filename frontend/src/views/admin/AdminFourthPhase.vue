@@ -114,12 +114,21 @@
                 ></audio>
               </div>
 
-              <button
-                class="button-comic text-2xl py-6 px-12 mt-8"
-                @click="nextQuestion"
-              >
-                🎲 Siguiente Canción
-              </button>
+              <div class="button-group">
+                <button
+                  class="button-comic text-2xl py-6 px-12 mt-8"
+                  @click="nextQuestion"
+                >
+                  🎲 Siguiente Canción
+                </button>
+                
+                <button
+                  class="button-comic button-finish text-2xl py-6 px-12 mt-8"
+                  @click="finishPhase"
+                >
+                  🏁 Finalizar Fase
+                </button>
+              </div>
             </div>
           </div>
 
@@ -154,15 +163,78 @@
                 </div>
               </div>
 
-              <button
-                class="button-comic text-2xl py-6 px-12 mt-8"
-                @click="nextQuestion"
-              >
-                🎲 Siguiente Canción
-              </button>
+              <div class="button-group">
+                <button
+                  class="button-comic text-2xl py-6 px-12 mt-8"
+                  @click="nextQuestion"
+                >
+                  🎲 Siguiente Canción
+                </button>
+                
+                <button
+                  class="button-comic button-finish text-2xl py-6 px-12 mt-8"
+                  @click="finishPhase"
+                >
+                  🏁 Finalizar Fase
+                </button>
+              </div>
             </div>
           </div>
 
+        </div>
+      </div>
+
+      <!-- Formulario de puntuación -->
+      <div v-if="selectedSong && !spinning" class="scoring-form">
+        <div class="form-card">
+          <h3 class="text-2xl font-bold text-white mb-4 text-center">
+            🏆 Asignar Puntos
+          </h3>
+          
+          <div class="form-content">
+            <div class="form-group">
+              <label for="playerSelect" class="form-label">Jugador:</label>
+              <select 
+                id="playerSelect" 
+                v-model="selectedPlayerId"
+                class="form-select"
+              >
+                <option value="" disabled>Selecciona un jugador</option>
+                <option 
+                  v-for="player in players" 
+                  :key="player.id" 
+                  :value="player.id"
+                >
+                  {{ player.name }}
+                </option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="pointsInput" class="form-label">Puntos:</label>
+              <input 
+                id="pointsInput"
+                v-model.number="points"
+                type="number"
+                min="0"
+                max="100"
+                class="form-input"
+                placeholder="0"
+              />
+            </div>
+            
+            <button
+              class="button-comic submit-button"
+              @click="submitPoints"
+              :disabled="!selectedPlayerId || points === null || submittingPoints"
+            >
+              {{ submittingPoints ? '⏳ Guardando...' : '✅ Sumar Puntos' }}
+            </button>
+          </div>
+          
+          <div v-if="pointsMessage" class="points-message" :class="pointsMessageType">
+            {{ pointsMessage }}
+          </div>
         </div>
       </div>
 
@@ -184,8 +256,19 @@ const flipped = ref(false)
 const lyrics = ref('')
 const loadingLyrics = ref(false)
 
+// Variables para el formulario de puntos
+const players = ref([])
+const selectedPlayerId = ref('')
+const points = ref(null)
+const submittingPoints = ref(false)
+const pointsMessage = ref('')
+const pointsMessageType = ref('success')
+const currentGameQuestionId = ref(null)
+
 onMounted(async () => {
   await loadSongs()
+  await loadPlayers()
+  await loadCurrentGameQuestion()
 })
 
 async function loadSongs() {
@@ -297,6 +380,17 @@ function nextQuestion() {
   // Resetear la canción seleccionada para poder elegir otra
   selectedSong.value = null
   displaySongs.value = []
+}
+
+function finishPhase() {
+  const gameCode = gameService.state.game?.code
+  if (!gameCode) {
+    console.error('❌ No hay código de juego disponible')
+    return
+  }
+  
+  // Navegar a la página de rankings finales
+  window.location.href = `/admin/${gameCode}/final-scores`
 }
 
 function playPreview() {
@@ -432,6 +526,142 @@ async function fetchLyrics() {
   } finally {
     loadingLyrics.value = false
     console.log('✅ fetchLyrics completado')
+  }
+}
+
+async function loadPlayers() {
+  try {
+    players.value = gameService.getPlayers()
+    console.log('👥 Jugadores cargados:', players.value.length)
+  } catch (error) {
+    console.error('❌ Error cargando jugadores:', error)
+  }
+}
+
+async function loadCurrentGameQuestion() {
+  try {
+    // Obtener las game_questions de fase 4
+    let phase4Questions = await gameService.getQuestionsForPhase(4)
+    
+    // Si no existen preguntas de fase 4, generarlas automáticamente
+    if (!phase4Questions || phase4Questions.length === 0) {
+      console.log('⚠️ No hay game_questions para fase 4, generando...')
+      await generatePhase4Questions()
+      // Volver a cargar después de generar
+      phase4Questions = await gameService.getQuestionsForPhase(4)
+    }
+    
+    if (phase4Questions && phase4Questions.length > 0) {
+      // Usar la primera pregunta de fase 4 para guardar las respuestas
+      currentGameQuestionId.value = phase4Questions[0].id
+      console.log('📝 Game Question ID para Fase 4:', currentGameQuestionId.value)
+    } else {
+      console.warn('⚠️ No se pudieron cargar o generar game_questions para fase 4')
+    }
+  } catch (error) {
+    console.error('❌ Error cargando game_question:', error)
+  }
+}
+
+async function generatePhase4Questions() {
+  try {
+    const API_URL = import.meta.env.VITE_API_URL
+    const gameCode = gameService.state.game?.code
+    
+    if (!gameCode) {
+      console.error('❌ No hay código de juego disponible')
+      return
+    }
+    
+    // Paso 1: Inicializar preguntas base de Fase 4 (en la tabla questions)
+    console.log('📚 Inicializando preguntas base de Fase 4...')
+    const initResponse = await fetch(`${API_URL}/questions/initialize-phase/4`, {
+      method: 'POST'
+    })
+    
+    if (!initResponse.ok) {
+      console.error('❌ Error inicializando preguntas base de Fase 4')
+      return
+    }
+    
+    const initData = await initResponse.json()
+    console.log('✅ Preguntas base:', initData)
+    
+    // Paso 2: Generar game_questions para esta partida
+    console.log('🔨 Generando game_questions de Fase 4 para la partida...')
+    const response = await fetch(`${API_URL}/games/${gameCode}/generate-phase/4`, {
+      method: 'POST'
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error('❌ Error generando fase 4:', errorData)
+      return
+    }
+    
+    const data = await response.json()
+    console.log('✅ Game questions de Fase 4 generadas:', data)
+  } catch (error) {
+    console.error('❌ Error en generatePhase4Questions:', error)
+  }
+}
+
+async function submitPoints() {
+  if (!selectedPlayerId.value || points.value === null) {
+    pointsMessage.value = '⚠️ Selecciona un jugador y una puntuación'
+    pointsMessageType.value = 'error'
+    return
+  }
+  
+  if (!currentGameQuestionId.value) {
+    pointsMessage.value = '❌ No se encontró la pregunta de la fase 4'
+    pointsMessageType.value = 'error'
+    return
+  }
+  
+  submittingPoints.value = true
+  pointsMessage.value = ''
+  
+  try {
+    const API_URL = import.meta.env.VITE_API_URL
+    const response = await fetch(`${API_URL}/answers`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        player_id: selectedPlayerId.value,
+        game_question_id: currentGameQuestionId.value,
+        text: `Puntos por cantar: ${selectedSong.value.trackName || selectedSong.value.text}`,
+        correct: points.value,
+        spotify_id: selectedSong.value.spotify_id || null
+      })
+    })
+    
+    if (!response.ok) {
+      throw new Error('Error al guardar los puntos')
+    }
+    
+    const player = players.value.find(p => p.id === selectedPlayerId.value)
+    pointsMessage.value = `✅ ${points.value} puntos asignados a ${player?.name || 'el jugador'}`
+    pointsMessageType.value = 'success'
+    
+    // Resetear formulario
+    selectedPlayerId.value = ''
+    points.value = null
+    
+    // Limpiar mensaje después de 3 segundos
+    setTimeout(() => {
+      pointsMessage.value = ''
+    }, 3000)
+    
+    console.log('✅ Puntos guardados correctamente')
+  } catch (error) {
+    console.error('❌ Error guardando puntos:', error)
+    pointsMessage.value = '❌ Error al guardar los puntos'
+    pointsMessageType.value = 'error'
+  } finally {
+    submittingPoints.value = false
   }
 }
 </script>
@@ -814,6 +1044,24 @@ async function fetchLyrics() {
   cursor: not-allowed;
 }
 
+.button-group {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.button-finish {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  border-color: #10b981 !important;
+}
+
+.button-finish:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+  transform: translateY(-2px) scale(1.05);
+}
+
 .audio-player {
   width: 100%;
   max-width: 400px;
@@ -832,5 +1080,107 @@ async function fetchLyrics() {
 .audio-player::-webkit-media-controls-pause-button {
   background-color: #fbbf24;
   border-radius: 50%;
+}
+
+/* Formulario de puntuación */
+.scoring-form {
+  margin-top: 3rem;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.form-card {
+  width: 100%;
+  max-width: 500px;
+  background: linear-gradient(145deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.1));
+  border: 3px solid #818cf8;
+  border-radius: 1.5rem;
+  padding: 2rem;
+  box-shadow: 0 10px 30px rgba(99, 102, 241, 0.3);
+}
+
+.form-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-label {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.form-select,
+.form-input {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  font-size: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.75rem;
+  color: white;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.form-select:focus,
+.form-input:focus {
+  outline: none;
+  border-color: #fbbf24;
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.1);
+}
+
+.form-select option {
+  background: #1e293b;
+  color: white;
+  padding: 0.5rem;
+}
+
+.form-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.submit-button {
+  margin-top: 0.5rem;
+  width: 100%;
+  padding: 1rem 2rem !important;
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+}
+
+.submit-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.points-message {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+  animation: slideIn 0.3s ease-out;
+}
+
+.points-message.success {
+  background: rgba(34, 197, 94, 0.2);
+  border: 2px solid #22c55e;
+  color: #86efac;
+}
+
+.points-message.error {
+  background: rgba(239, 68, 68, 0.2);
+  border: 2px solid #ef4444;
+  color: #fca5a5;
 }
 </style>
