@@ -1,68 +1,101 @@
 <template>
-  <div class="min-screen flex-center bg-spotify-gradient px-4 overflow-hidden relative">
-    
-    <!-- Intro inicial -->
-    <transition name="fade">
-      <div v-if="showIntro" class="absolute bottom-8 w-full text-center text-white/70 waiting-text">
-        <h1>Fase 3. Completa la canción</h1>
+  <div class="min-screen flex-center py-8">
+    <div class="w-full max-w-6xl px-6">
+
+      <!-- Título Principal -->
+      <div class="text-center mb-12">
+        <h1 class="text-6xl font-black text-white mb-4 animate-pulse-slow">
+          🏆 RESULTADOS FASE 2 🏆
+        </h1>
+        <p class="text-xl text-white/70">¿Quién conoce mejor a quién?</p>
       </div>
 
-      <!-- Pantalla principal -->
-      <div v-else class="flex flex-col justify-between items-center w-full h-full py-10 text-white">
-        
-        <!-- Pregunta -->
-        <div class="text-center mt-10 w-full max-w-md">
-          <h2 class="text-2xl font-bold mb-6">{{ question }}</h2>
+      <div v-if="loading" class="text-center text-white/60 text-2xl">
+        Cargando puntuaciones...
+      </div>
 
-          <!-- Campo de texto -->
-          <input
-            v-model="query"
-            @input="debouncedSearch"
-            type="text"
-            placeholder="Busca una canción..."
-            class="input-comic w-full text-center"
-          />
-
-          <!-- Resultados -->
-          <ul v-if="songs.length" class="mt-4 bg-white/10 rounded-2xl p-2 divide-y divide-white/20">
-            <li
-              v-for="song in songs"
-              :key="song.trackId"
-              class="flex items-center gap-3 p-2 hover:bg-white/20 cursor-pointer rounded-xl"
-              @click="selectSong(song)"
+      <div v-else class="space-y-12">
+        <!-- Ranking Individual -->
+        <div class="ranking-section">
+          <div class="section-header">
+            <h2 class="text-4xl font-bold text-white mb-2">👥 Ranking Individual</h2>
+            <div class="header-line"></div>
+          </div>
+          
+          <div v-if="playersRanking.length === 0" class="text-white/60 text-center text-xl py-8">
+            No hay puntuaciones disponibles
+          </div>
+          
+          <div v-else class="grid gap-4">
+            <div 
+              v-for="(player, index) in playersRanking" 
+              :key="player.player_id"
+              :class="[
+                'player-card',
+                { 'top-1': index === 0, 'top-2': index === 1, 'top-3': index === 2 }
+              ]"
             >
-              <img :src="song.artworkUrl60" class="w-10 h-10 rounded-lg" alt="cover" />
-              <div class="text-left">
-                <p class="font-semibold text-sm track-name">{{ song.trackName }}</p>
-                <p class="text-xs text-white/70 artist-name">{{ song.artistName }}</p>
+              <div class="flex items-center gap-6 flex-1">
+                <div class="position-badge" :class="getMedalClass(index)">
+                  <span class="position-number">{{ index + 1 }}</span>
+                  <span class="medal-icon">{{ getMedalIcon(index) }}</span>
+                </div>
+                <div class="player-info">
+                  <div class="player-name">{{ player.player_name }}</div>
+                  <div v-if="player.group" class="player-group">{{ player.group }}</div>
+                </div>
               </div>
-            </li>
-          </ul>
-
-          <!-- Canción seleccionada -->
-          <ul v-if="selectedSong" class="mt-4 bg-white/10 rounded-2xl p-2 divide-y divide-white/20">
-            <li class="flex items-center gap-3 p-2 hover:bg-white/20 cursor-pointer rounded-xl">
-              <img :src="selectedSong.artworkUrl60" class="w-10 h-10 rounded-lg" alt="cover" />
-              <div class="text-left">
-                <p class="font-semibold text-sm track-name">{{ selectedSong.trackName }}</p>
-                <p class="text-xs text-white/70 artist-name">{{ selectedSong.artistName }}</p>
+              <div class="score-badge">
+                <div class="score-number">{{ player.total_points }}</div>
+                <div class="score-label">puntos</div>
               </div>
-            </li>
-          </ul>
-
+            </div>
+          </div>
         </div>
 
-        <!-- Botón Enviar -->
-        <button
-          class="button-comic px-6 py-2 mt-auto mb-10"
-          @click="submitAnswer"
-          :disabled="!selectedSong"
-        >
-          Enviar
-        </button>
-      </div>
-    </transition>
+        <!-- Ranking por Grupos -->
+        <div v-if="groupsRanking.length > 0" class="ranking-section">
+          <div class="section-header">
+            <h2 class="text-4xl font-bold text-white mb-2">🏢 Ranking por Grupos</h2>
+            <div class="header-line"></div>
+          </div>
+          
+          <div class="grid gap-4">
+            <div 
+              v-for="(group, index) in groupsRanking" 
+              :key="group.group"
+              :class="[
+                'group-card',
+                { 'top-1': index === 0, 'top-2': index === 1, 'top-3': index === 2 }
+              ]"
+            >
+              <div class="flex items-center gap-6 flex-1">
+                <div class="position-badge" :class="getMedalClass(index)">
+                  <span class="position-number">{{ index + 1 }}</span>
+                  <span class="medal-icon">{{ getMedalIcon(index) }}</span>
+                </div>
+                <div class="player-info">
+                  <div class="player-name">{{ group.group }}</div>
+                  <div class="player-group">{{ group.players_count }} jugadores</div>
+                </div>
+              </div>
+              <div class="score-badge">
+                <div class="score-number">{{ group.total_points }}</div>
+                <div class="score-label">puntos</div>
+              </div>
+            </div>
+          </div>
+        </div>
 
+        <!-- Mensaje de espera -->
+        <div class="text-center mt-12">
+          <p class="text-white/70 text-xl animate-pulse">
+            Esperando a que el administrador continúe...
+          </p>
+        </div>
+      </div>
+
+    </div>
   </div>
 </template>
 
@@ -70,96 +103,203 @@
 import { ref, onMounted } from 'vue'
 import gameService from '../../services/gameService'
 
-const showIntro = ref(true)
-let currentPhaseQuestion = ref("")
-const query = ref("")
-const songs = ref([])
-const selectedSong = ref(null)
-let searchTimeout = null
+const loading = ref(true)
+const playersRanking = ref([])
+const groupsRanking = ref([])
+const totalQuestions = ref(0)
 
-async function searchSongs() {
-  if (!query.value.trim()) {
-    songs.value = []
-    return
-  }
-
-  const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query.value)}&entity=song&limit=5`)
-  const data = await res.json()
-  songs.value = data.results
-}
-
-function debouncedSearch() {
-  clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(searchSongs, 500) // Espera 0.5s tras dejar de escribir
-}
-
-function selectSong(song) {
-  selectedSong.value = song
-  query.value = `${song.trackName} - ${song.artistName}`
-  songs.value = [] // Ocultar resultados tras seleccionar
-}
-
-function submitAnswer() {
-  console.log("🎵 Canción seleccionada:", selectedSong.value)
-  alert(`Has elegido: ${selectedSong.value.trackName} - ${selectedSong.value.artistName}`)
-}
-
-onMounted(() => {
-  //Check each second what is the current question
-  setInterval(async () => {
-    const question = await gameService.getCurrentPhaseQuestion()
-    console.log("Pregunta actual:", question)
-    if (question) {
-      currentPhaseQuestion.value = question.text
-    }
-  }, 1000)
-
-  setTimeout(() => {
-    showIntro.value = false
-  }, 3000)
+onMounted(async () => {
+  await loadScores()
 })
+
+async function loadScores() {
+  loading.value = true
+  try {
+    const data = await gameService.getPhase2Scores()
+    playersRanking.value = data.players || []
+    groupsRanking.value = data.groups || []
+    totalQuestions.value = data.total_questions || 0
+    
+    console.log('📊 Ranking cargado:', {
+      players: playersRanking.value.length,
+      groups: groupsRanking.value.length,
+      questions: totalQuestions.value
+    })
+  } catch (error) {
+    console.error('❌ Error cargando puntuaciones:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+function getMedalIcon(index) {
+  if (index === 0) return '🥇'
+  if (index === 1) return '🥈'
+  if (index === 2) return '🥉'
+  return '🎖️'
+}
+
+function getMedalClass(index) {
+  if (index === 0) return 'gold'
+  if (index === 1) return 'silver'
+  if (index === 2) return 'bronze'
+  return ''
+}
 </script>
 
 <style scoped>
-.waiting-text {
-  font-size: 1.55rem;
-  animation: pulse 2s infinite;
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
 }
 
-.fade-enter-active, .fade-leave-active {
-  transition: opacity 0.8s;
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
 }
-.fade-enter-from, .fade-leave-to {
-  opacity: 0;
+
+.ranking-section {
+  margin-bottom: 3rem;
+  margin-left: 100px;
+  margin-right: 100px;
 }
-img {
-  margin-right: 8px !important;
+
+.section-header {
+  text-align: center;
+  margin-bottom: 2rem;
 }
-p {
-  margin: 0 !important;
+
+.header-line {
+  height: 4px;
+  background: linear-gradient(90deg, transparent, #fbbf24, transparent);
+  margin: 0 auto;
+  width: 60%;
+  border-radius: 2px;
 }
-ul{
-  list-style: none;
-  margin: 1rem;
-  padding: 1rem;
-  width: 85%;
-  max-width: 500px;
-  background: rgba(0, 0, 0, 0.6);
+
+.player-card,
+.group-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 2rem;
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 1rem;
-  backdrop-filter: blur(12px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
-  color: white;
-  overflow-y: auto;
-  max-height: 300px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
 }
 
-.track-name {
+.player-card:hover,
+.group-card:hover {
+  transform: translateX(8px);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(251, 191, 36, 0.5);
+  box-shadow: 0 8px 32px rgba(251, 191, 36, 0.2);
+}
+
+.player-card.top-1,
+.group-card.top-1 {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(255, 255, 255, 0.08));
+  border: 3px solid #fbbf24;
+  box-shadow: 0 8px 32px rgba(251, 191, 36, 0.3);
+  transform: scale(1.02);
+}
+
+.player-card.top-2,
+.group-card.top-2 {
+  background: linear-gradient(135deg, rgba(192, 192, 192, 0.15), rgba(255, 255, 255, 0.08));
+  border: 2px solid #c0c0c0;
+}
+
+.player-card.top-3,
+.group-card.top-3 {
+  background: linear-gradient(135deg, rgba(205, 127, 50, 0.15), rgba(255, 255, 255, 0.08));
+  border: 2px solid #cd7f32;
+}
+
+.position-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 80px;
+  height: 80px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+}
+
+.position-badge.gold {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  border-color: #fbbf24;
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
+}
+
+.position-badge.silver {
+  background: linear-gradient(135deg, #e5e7eb, #9ca3af);
+  border-color: #c0c0c0;
+}
+
+.position-badge.bronze {
+  background: linear-gradient(135deg, #f59e0b, #cd7f32);
+  border-color: #cd7f32;
+}
+
+.position-number {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.medal-icon {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.player-info {
+  flex: 1;
+}
+
+.player-name {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 0.25rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.player-group {
   font-size: 1rem;
+  color: rgba(255, 255, 255, 0.6);
   font-weight: 500;
 }
-.artist-name {
-  font-size: 0.85rem;
-  color: #cccccc;
+
+.score-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem 2rem;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.1));
+  border-radius: 0.75rem;
+  border: 2px solid rgba(34, 197, 94, 0.3);
+  min-width: 120px;
 }
 
+.score-number {
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: #22c55e;
+  line-height: 1;
+  text-shadow: 0 2px 8px rgba(34, 197, 94, 0.4);
+}
+
+.score-label {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  margin-top: 0.25rem;
+}
 </style>

@@ -36,7 +36,7 @@
                 @click="assignGroup(player, 'A')"
                 :class="[
                   'button-comic px-2 py-1 text-sm',
-                  player.group === 'A' ? 'highglight-button' : ''
+                  player.group === groupAName ? 'highglight-button' : ''
                 ]"
               >
                 A
@@ -45,7 +45,7 @@
                 @click="assignGroup(player, 'B')"
                 :class="[
                   'button-comic px-2 py-1 text-sm',
-                  player.group === 'B' ? 'highglight-button' : '',
+                  player.group === groupBName ? 'highglight-button' : '',
                 ]"
               >
                 B
@@ -69,8 +69,8 @@
 
       <!-- Resumen de asignaciones -->
       <div class="flex flex-col gap-2 w-full max-w-md text-white">
-        <p>Jugadores en {{ groupAName }}: {{ playersByGroup('A').map(p => p.nombre).join(', ') || '-' }}</p>
-        <p>Jugadores en {{ groupBName }}: {{ playersByGroup('B').map(p => p.nombre).join(', ') || '-' }}</p>
+        <p>Jugadores en {{ groupAName }}: {{ playersByGroup('A').map(p => p.name).join(', ') || '-' }}</p>
+        <p>Jugadores en {{ groupBName }}: {{ playersByGroup('B').map(p => p.name).join(', ') || '-' }}</p>
       </div>
 
       <!-- Botón de iniciar juego -->
@@ -148,20 +148,43 @@ const groupAName = ref('Grupo A')
 const groupBName = ref('Grupo B')
 
 // Función para asignar jugador a un grupo
-function assignGroup(player, group) {
-  player.group = group
+async function assignGroup(player, group) {
+  try {
+    // Usar el nombre personalizado del grupo
+    const groupName = group === 'A' ? groupAName.value : groupBName.value
+    
+    const response = await fetch(`${API_URL}/players/${player.id}/group`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ group: groupName })
+    })
+    
+    if (!response.ok) {
+      throw new Error('Error al asignar grupo')
+    }
+    
+    const updatedPlayer = await response.json()
+    player.group = updatedPlayer.group
+    console.log(`✅ Jugador ${player.name} asignado al grupo ${groupName}`)
+  } catch (error) {
+    console.error('Error al asignar grupo:', error)
+    alert('Error al asignar grupo al jugador')
+  }
 }
 
 function playersByGroup(group) {
-  return players.filter(p => p.group === group  )
+  const groupName = group === 'A' ? groupAName.value : groupBName.value
+  return players.filter(p => p.group === groupName)
 }
 
 function allPlayersAssigned(){
   console.log("Verificando asignaciones de jugadores...");
   players.forEach(p => {
-    console.log(`Jugador: ${p.nombre}, Grupo: ${p.group}`);
+    console.log(`Jugador: ${p.name}, Grupo: ${p.group}`);
   });
-  return players.every(p => p.group !== null)
+  return players.every(p => p.group !== null && p.group !== undefined)
 }
 
 // Función de inicio del juego

@@ -389,3 +389,107 @@ def calculate_correct_answers(gq_id: int, db: Session = Depends(get_db)):
         "players": players_result,
         "total_points": total_points
     }
+
+
+@app.get("/games/{game_code}/phase2/scores")
+def get_phase2_scores(game_code: str, db: Session = Depends(get_db)):
+    """
+    Obtiene el ranking de puntuaciones de la fase 2.
+    Devuelve puntuaciones individuales y por grupos.
+    """
+    print(f"🏆 Obteniendo puntuaciones de fase 2 para game: {game_code}")
+    
+    # 1️⃣ Obtener el juego
+    game = db.query(models.Game).filter(models.Game.code == game_code).first()
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    
+    # 2️⃣ Obtener todas las game_questions de fase 2 de este juego
+    phase2_game_questions = db.query(models.GameQuestion).filter(
+        models.GameQuestion.game_id == game.id,
+        models.GameQuestion.phase == 2
+    ).all()
+    
+    if not phase2_game_questions:
+        print("⚠️ No hay preguntas de fase 2")
+        return {"players": [], "groups": [], "total_questions": 0}
+    
+    phase2_gq_ids = [gq.id for gq in phase2_game_questions]
+    
+    # 3️⃣ Obtener todas las respuestas de fase 2
+    phase2_answers = db.query(models.Answer).filter(
+        models.Answer.game_question_id.in_(phase2_gq_ids)
+    ).all()
+    
+    print(f"📋 Encontradas {len(phase2_answers)} respuestas de fase 2")
+    
+    # 4️⃣ Calcular puntuaciones por jugador
+    player_scores = {}
+    for answer in phase2_answers:
+        player_id = answer.player_id
+        points = answer.correct if isinstance(answer.correct, int) else 0
+        
+        if player_id not in player_scores:
+            player = db.query(models.Player).filter(models.Player.id == player_id).first()
+            player_scores[player_id] = {
+                "player_id": player_id,
+                "player_name": player.name if player else "Unknown",
+                "group": getattr(player, 'group', None) if player else None,
+                "total_points": 0
+            }
+        
+        player_scores[player_id]["total_points"] += points
+    
+    # Convertir a lista y ordenar por puntuación descendente
+    players_ranking = sorted(player_scores.values(), key=lambda x: x["total_points"], reverse=True)
+    
+    print(f"👥 Ranking individual: {len(players_ranking)} jugadores")
+    for idx, p in enumerate(players_ranking, 1):
+        print(f"  {idx}. {p['player_name']}: {p['total_points']} pts")
+    
+    # 5️⃣ Calcular puntuaciones por grupo (si existen)
+    group_scores = {}
+    for player_data in player_scores.values():
+        group = player_data.get("group")
+        if group:
+            if group not in group_scores:
+                group_scores[group] = {
+                    "group": group,
+                    "total_points": 0,
+                    "players_count": 0
+                }
+            group_scores[group]["total_points"] += player_data["total_points"]
+            group_scores[group]["players_count"] += 1
+    
+    # Convertir a lista y ordenar por puntuación descendente
+    groups_ranking = sorted(group_scores.values(), key=lambda x: x["total_points"], reverse=True)
+    
+    print(f"🏢 Ranking por grupos: {len(groups_ranking)} grupos")
+    for idx, g in enumerate(groups_ranking, 1):
+        print(f"  {idx}. Grupo {g['group']}: {g['total_points']} pts ({g['players_count']} jugadores)")
+    
+    return {
+        "game_code": game_code,
+        "total_questions": len(phase2_game_questions),
+        "players": players_ranking,
+        "groups": groups_ranking
+    }
+
+
+@app.patch("/players/{player_id}/group")
+def assign_player_group(player_id: int, group_data: dict, db: Session = Depends(get_db)):
+    """
+    Asigna un jugador a un grupo.
+    """
+    player = db.query(models.Player).filter(models.Player.id == player_id).first()
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+    
+    group = group_data.get("group")
+    player.group = group
+    db.commit()
+    db.refresh(player)
+    
+    print(f"✅ Jugador {player.name} asignado al grupo {group}")
+    
+    return player.to_dict()

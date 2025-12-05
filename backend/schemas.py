@@ -14,6 +14,7 @@ class PlayerCreate(PlayerBase):
 class Player(PlayerBase):
     id: int
     is_admin: bool
+    group: Optional[str] = None
 
     class Config:
         orm_mode = True

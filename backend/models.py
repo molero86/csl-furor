@@ -29,6 +29,7 @@ class Player(Base):
     name = Column(String(100), nullable=False)
     game_id = Column(Integer, ForeignKey("games.id"))
     is_admin = Column(Boolean, default=False)
+    group = Column(String(50), nullable=True)
 
     game = relationship("Game", back_populates="players")
     answers = relationship("Answer", back_populates="player", cascade="all, delete")
@@ -39,6 +40,7 @@ class Player(Base):
             "name": self.name,
             "game_id": self.game_id,
             "is_admin": self.is_admin,
+            "group": self.group,
         }
         if include_game and self.game:
             data["game"] = {

@@ -404,7 +404,8 @@ export default {
   submitAnswer,
   getAnswersForGameQuestion,
   getQuestionCount,
-  calculateCorrectAnswers
+  calculateCorrectAnswers,
+  getPhase2Scores
 }
 
 async function getQuestionsForPhase(phase) {
@@ -437,5 +438,17 @@ async function calculateCorrectAnswers(gameQuestionId) {
   console.log('👥 Total de jugadores:', data.players?.length || 0)
   console.log('🏆 Puntos totales:', data.total_points || 0)
   
+  return data
+}
+
+async function getPhase2Scores() {
+  if (!state.game?.code) throw new Error('Game not hydrated')
+  console.log('🏆 Obteniendo puntuaciones de fase 2 para game:', state.game.code)
+  
+  const res = await fetch(`${API_URL}/games/${state.game.code}/phase2/scores`)
+  if (!res.ok) throw new Error('Error loading phase 2 scores')
+  
+  const data = await res.json()
+  console.log('📊 Puntuaciones recibidas:', data)
   return data
 }
