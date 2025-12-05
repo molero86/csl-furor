@@ -69,6 +69,12 @@ async function loadForCurrentGameQuestion(gqId = null) {
     questionText.value = gameService.state.currentGameQuestionText || ''
     return
   }
+  
+  // Resetear estado del formulario
+  sent.value = false
+  submitting.value = false
+  successMessage.value = ''
+  
   const ans = await gameService.getAnswersForGameQuestion(id)
   answers.value = ans
   // enrich answers with iTunes metadata when possible (spotify_id stores the external track id)

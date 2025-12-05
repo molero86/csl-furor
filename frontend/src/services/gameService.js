@@ -433,8 +433,9 @@ async function calculateCorrectAnswers(gameQuestionId) {
   
   const data = await res.json()
   console.log('✅ Respuestas correctas recibidas:', data)
-  console.log('📊 Total de respuestas:', data.answers?.length || 0)
-  console.log('✔️ Total correctas:', data.total_correct || 0)
+  console.log('🎵 Total de canciones:', data.songs?.length || 0)
+  console.log('👥 Total de jugadores:', data.players?.length || 0)
+  console.log('🏆 Puntos totales:', data.total_points || 0)
   
-  return data.answers || []
+  return data
 }

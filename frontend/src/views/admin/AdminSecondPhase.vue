@@ -36,7 +36,7 @@
                             </div>
                           </div>
                         </div>
-                        <div v-if="showCorrect" class="flex items-center ml-4 pl-4 border-l border-white/20">
+                        <div v-if="showCorrect" class="flex items-center ml-4 pl-4 correct-answer">
                           <div class="text-sm font-semibold text-green-400">
                             {{ getCorrectPlayerName(ans) }}
                           </div>
@@ -51,19 +51,9 @@
         </div>
       </div>
 
-      <div class="mt-6 flex justify-center">
-        <button 
-          v-if="!showCorrect"
-          @click="calculateCorrect"
-          class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
-        >
-          Comprobar respuestas
-        </button>
-      </div>
-
       <button
         class="button-comic w-full max-w-xs mt-4"
-        @click="siguientePregunta"
+        @click="calculateCorrect"
       >
         {{ buttonLabel }}
       </button>
@@ -84,9 +74,10 @@ const guessCountsState = ref({}) // mirrors gameService.state.guessCounts for re
 const gameQuestions = ref([])
 const currentIndex = ref(0)
 const showCorrect = ref(false)
+const correctAnswersMap = ref({}) // Map: spotify_id -> correct_player_name
 
 const currentQuestionText = computed(() => gameService.state.currentGameQuestionText || '')
-const buttonLabel = computed(() => true ? 'Revelar resultados' : 'Siguiente pregunta')
+const buttonLabel = computed(() => !showCorrect.value ? 'Comprobar respuestas' : 'Siguiente pregunta')
 
 function playerName(id) {
   const p = (gameService.state.game.players || []).find(x => x.id === id)
@@ -233,11 +224,14 @@ function next() {
 }
 
 async function calculateCorrect() {
-  console.log('🎯 Iniciando cálculo de respuestas correctas...')
-  
+  if(showCorrect.value) {
+    // move to next question
+    next()
+    showCorrect.value = false
+    return
+  }
+
   const gqId = gameService.state.currentGameQuestionId || (gameQuestions.value[currentIndex.value] && gameQuestions.value[currentIndex.value].id)
-  console.log('📝 Game Question ID:', gqId)
-  console.log('📋 Respuestas actuales antes de calcular:', answers.value.length)
   
   if (!gqId) {
     console.warn('⚠️ No hay game_question_id disponible')
@@ -245,28 +239,22 @@ async function calculateCorrect() {
   }
   
   try {
-    console.log('📞 Llamando a gameService.calculateCorrectAnswers...')
-    const correctAnswers = await gameService.calculateCorrectAnswers(gqId)
-    console.log('📥 Respuestas correctas recibidas del servicio:', correctAnswers)
+    const data = await gameService.calculateCorrectAnswers(gqId)
     
-    const updatedAnswers = answers.value.map(ans => {
-      const updated = correctAnswers.find(a => a.answer_id === ans.id)
-      if (updated) {
-        console.log(`✅ Actualizando respuesta ${ans.id}:`, {
-          correct: updated.correct,
-          player_name: updated.player_name
-        })
-        return { ...ans, correct: updated.correct, player_name: updated.player_name }
+    // Usar el array 'songs' que ya viene con el mapa correcto del backend
+    const map = {}
+    
+    if (data.songs && Array.isArray(data.songs)) {
+      for (const song of data.songs) {
+        if (song.spotify_id && song.correct_player_name) {
+          map[song.spotify_id] = song.correct_player_name
+        }
       }
-      console.log(`ℹ️ No se encontró actualización para respuesta ${ans.id}`)
-      return ans
-    })
+    }
     
-    answers.value = updatedAnswers
-    console.log('🔄 Respuestas actualizadas:', answers.value)
+    correctAnswersMap.value = map
     
     showCorrect.value = true
-    console.log('👁️ showCorrect activado:', showCorrect.value)
   } catch (error) {
     console.error('❌ Error calculating correct answers:', error)
     console.error('Stack trace:', error.stack)
@@ -274,18 +262,29 @@ async function calculateCorrect() {
 }
 
 function getCorrectPlayerName(answer) {
-  if (!answer || !answer.correct || answer.correct === 0) {
+  console.log('🔍 getCorrectPlayerName llamado con answer:', {
+    id: answer?.id,
+    spotify_id: answer?.spotify_id,
+    text: answer?.text?.substring(0, 50)
+  })
+  
+  if (!answer) {
     return '—'
   }
-  // Mostrar nombre del jugador y su puntuación
-  let playerName = '—'
-  if (answer.player_name) {
-    playerName = answer.player_name
-  } else {
-    const correctPlayer = players.value.find(p => p.id === answer.player_id)
-    playerName = correctPlayer ? correctPlayer.name : '—'
+  
+  if (!answer.spotify_id) {
+    return '—'
   }
-  return `${playerName} (${answer.correct} pts)`
+  
+  // Buscar en el mapa usando el spotify_id de la canción
+  const correctName = correctAnswersMap.value[answer.spotify_id]
+   
+  
+  if (correctName) {
+    return correctName
+  }
+  
+  return '—'
 }
 
 function siguientePregunta() {
@@ -379,5 +378,12 @@ progress::-moz-progress-bar {
 
 .button-comic.bg-green-600:hover {
   background-color: #17a34a; /* Verde más intenso al pasar el mouse */
+}
+.correct-answer {
+  margin-left: 20px;
+  color: blue;
+  font-weight: bold;
+  font-size: 1.2em;
+  text-shadow: 0 0 5px rgba(0, 0, 255, 0.7);
 }
 </style>

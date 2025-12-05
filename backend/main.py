@@ -339,16 +339,44 @@ def calculate_correct_answers(gq_id: int, db: Session = Depends(get_db)):
     db.commit()
     print("\n💾 Cambios guardados en la base de datos")
 
-    # 5️⃣ Devolver las respuestas con información completa
-    result = []
+    # 5️⃣ Construir el listado de canciones con su respuesta correcta
+    # Obtener todas las respuestas de fase 1 (canciones originales)
+    game_question = db.query(models.GameQuestion).filter(models.GameQuestion.id == gq_id).first()
+    if not game_question:
+        raise HTTPException(status_code=404, detail="Game question not found")
+    
+    # Buscar las respuestas de fase 1 del mismo juego
+    phase1_game_questions = db.query(models.GameQuestion).filter(
+        models.GameQuestion.game_id == game_question.game_id,
+        models.GameQuestion.phase == 1
+    ).all()
+    
+    phase1_gq_ids = [gq.id for gq in phase1_game_questions]
+    phase1_answers = db.query(models.Answer).filter(
+        models.Answer.game_question_id.in_(phase1_gq_ids)
+    ).all()
+    
+    # Crear el listado con spotify_id y el nombre del jugador correcto
+    songs_result = []
+    for phase1_answer in phase1_answers:
+        player = db.query(models.Player).filter(models.Player.id == phase1_answer.player_id).first()
+        songs_result.append({
+            "spotify_id": phase1_answer.spotify_id,
+            "correct_player_name": player.name if player else None,
+            "correct_player_id": phase1_answer.player_id,
+            "text": phase1_answer.text
+        })
+    
+    print(f"\n🎵 Generado listado de {len(songs_result)} canciones con sus respuestas correctas")
+
+    # También devolver las respuestas de los jugadores con sus puntuaciones
+    players_result = []
     for answer in answers:
         player = db.query(models.Player).filter(models.Player.id == answer.player_id).first()
-        result.append({
+        players_result.append({
             "answer_id": answer.id,
             "player_id": answer.player_id,
             "player_name": player.name if player else None,
-            "text": answer.text,
-            "spotify_id": answer.spotify_id,
             "correct": answer.correct,
         })
 
@@ -357,6 +385,7 @@ def calculate_correct_answers(gq_id: int, db: Session = Depends(get_db)):
 
     return {
         "game_question_id": gq_id,
-        "answers": result,
+        "songs": songs_result,
+        "players": players_result,
         "total_points": total_points
     }
