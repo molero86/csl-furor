@@ -422,8 +422,9 @@ function finishPhase() {
     return
   }
   
-  // Navegar a la página de rankings finales
-  window.location.href = `/admin/${gameCode}/final-scores`
+  // Notificar a todos los clientes (incluido el admin) que deben navegar a final-scores
+  // El servidor hará broadcast y todos navegarán automáticamente via handle_SHOW_FINAL_SCORES
+  gameService.showFinalScores()
 }
 
 function playPreview() {

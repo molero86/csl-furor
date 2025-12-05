@@ -112,6 +112,9 @@ function handleMessage(router) {
       case events.SERVER_EVENTS.BUZZER_RESET:
         handle_BUZZER_RESET(msg)
         break
+      case events.SERVER_EVENTS.SHOW_FINAL_SCORES:
+        handle_SHOW_FINAL_SCORES(msg, router)
+        break
       default:
         console.warn("Tipo de mensaje desconocido:", msg.type)
         return
@@ -303,6 +306,19 @@ function handle_BUZZER_RESET(msg) {
   state.buzzerWinner = null
   state.buzzerEnabled = true
 }
+
+function handle_SHOW_FINAL_SCORES(msg, router) {
+  console.log('SHOW_FINAL_SCORES RECEIVED - Navegando a resultados finales')
+  if (router && state.game?.code) {
+    // Check if current path is not already final-scores
+    const currentPath = router.currentRoute.value.path
+    if (!currentPath.includes('final-scores')) {
+      const role = currentPath.startsWith('/admin/') ? 'admin' : 'player'
+      const targetPath = `/${role}/${state.game.code}/final-scores`
+      router.push(targetPath)
+    }
+  }
+}
 //*************************************************************************************************************/
 
 // Utils de hidratación antes de usar APIs que requieren game.code/phase
@@ -425,6 +441,11 @@ function resetBuzzer() {
   send(events.ADMIN_EVENTS.BUZZER_RESET, {})
 }
 
+function showFinalScores() {
+  console.log("📊 Solicitando mostrar resultados finales")
+  send(events.ADMIN_EVENTS.SHOW_FINAL_SCORES, {})
+}
+
 async function getQuestionsForPhase(phase) {
   if (!state.game?.code) throw new Error('Game not hydrated')
   const res = await fetch(`${API_URL}/games/${state.game.code}/phases/${phase}/game_questions`)
@@ -516,5 +537,6 @@ export default {
   getPhase1Songs,
   getCombinedScores,
   pressBuzzer,
-  resetBuzzer
+  resetBuzzer,
+  showFinalScores
 }
