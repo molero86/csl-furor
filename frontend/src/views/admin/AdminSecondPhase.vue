@@ -77,7 +77,13 @@ const showCorrect = ref(false)
 const correctAnswersMap = ref({}) // Map: spotify_id -> correct_player_name
 
 const currentQuestionText = computed(() => gameService.state.currentGameQuestionText || '')
-const buttonLabel = computed(() => !showCorrect.value ? 'Comprobar respuestas' : 'Siguiente pregunta')
+const isLastQuestion = computed(() => currentIndex.value >= gameQuestions.value.length - 1)
+const buttonLabel = computed(() => {
+  if (!showCorrect.value) {
+    return 'Comprobar respuestas'
+  }
+  return isLastQuestion.value ? 'Pasar a la siguiente fase' : 'Siguiente pregunta'
+})
 
 function playerName(id) {
   const p = (gameService.state.game.players || []).find(x => x.id === id)
@@ -220,6 +226,10 @@ function next() {
   if (currentIndex.value < gameQuestions.value.length - 1) {
     currentIndex.value += 1
     applyCurrentQuestion()
+  } else {
+    // Ya no hay más preguntas, avanzar a la fase 3
+    const nextPhase = (gameService.state.game?.phase || 2) + 1
+    gameService.changePhase(nextPhase)
   }
 }
 

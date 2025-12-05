@@ -245,4 +245,16 @@ ul{
   color: #cccccc;
 }
 
+.button-comic:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: #6b7280 !important;
+  pointer-events: none;
+}
+
+.button-comic:disabled:hover {
+  background-color: #6b7280 !important;
+  transform: none !important;
+}
+
 </style>
