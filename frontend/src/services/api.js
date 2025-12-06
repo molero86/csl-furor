@@ -1,4 +1,4 @@
-const API_URL = "http://192.168.68.10:4017";
+const API_URL = "http://furorapi.molero.org";
 
 export async function createGame() {
   const response = await fetch(`${API_URL}/games`, {
