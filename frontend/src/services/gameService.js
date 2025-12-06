@@ -1,7 +1,8 @@
 import { reactive } from 'vue'
 import Game, { Player } from '../models/game.js'
 import * as events from '../constants/events.js'
-const API_URL = import.meta.env.VITE_API_URL;
+// Soporte para configuración en runtime (producción) y build-time (desarrollo)
+const API_URL = (typeof window !== 'undefined' && window.__env?.VITE_API_URL) || import.meta.env.VITE_API_URL;
 
 const state = reactive({
   ws: null,
@@ -43,8 +44,9 @@ function connect(gameId, playerName, router, role = 'player') {
     return
   }
 
-  // Convert API_URL (http://...) to WebSocket URL (ws://...)
-  const wsUrl = (API_URL || 'http://localhost:8000').replace(/^http/, 'ws')
+  // Convert API_URL (http://... or https://...) to WebSocket URL (ws://... or wss://...)
+  const apiUrl = API_URL || 'http://localhost:8000'
+  const wsUrl = apiUrl.replace(/^https?:/, apiUrl.startsWith('https') ? 'wss:' : 'ws:')
   const ws = new WebSocket(`${wsUrl}/ws/${gameId}`)
   state.ws = ws
 

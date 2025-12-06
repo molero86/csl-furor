@@ -91,7 +91,8 @@ import { reactive, ref } from 'vue'
 import { onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import gameService from '../../services/gameService'
-const API_URL = import.meta.env.VITE_API_URL
+// Soporte para configuración en runtime (producción) y build-time (desarrollo)
+const API_URL = (typeof window !== 'undefined' && window.__env?.VITE_API_URL) || import.meta.env.VITE_API_URL
 
 const route = useRoute()
 const gameId = ref(String(route.params.gameId || ''))

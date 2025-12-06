@@ -1,4 +1,5 @@
-const API_URL = import.meta.env.VITE_API_URL;
+// Soporte para configuración en runtime (producción) y build-time (desarrollo)
+const API_URL = (typeof window !== 'undefined' && window.__env?.VITE_API_URL) || import.meta.env.VITE_API_URL;
 
 export async function getQuestions() {
   const res = await fetch(`${API_URL}/questions`);

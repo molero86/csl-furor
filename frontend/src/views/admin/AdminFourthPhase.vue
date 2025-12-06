@@ -599,7 +599,7 @@ async function loadCurrentGameQuestion() {
 
 async function generatePhase4Questions() {
   try {
-    const API_URL = import.meta.env.VITE_API_URL
+    const API_URL = (typeof window !== 'undefined' && window.__env?.VITE_API_URL) || import.meta.env.VITE_API_URL
     const gameCode = gameService.state.game?.code
     
     if (!gameCode) {
@@ -657,7 +657,7 @@ async function submitPoints() {
   pointsMessage.value = ''
   
   try {
-    const API_URL = import.meta.env.VITE_API_URL
+    const API_URL = (typeof window !== 'undefined' && window.__env?.VITE_API_URL) || import.meta.env.VITE_API_URL
     const response = await fetch(`${API_URL}/answers`, {
       method: 'POST',
       headers: {
